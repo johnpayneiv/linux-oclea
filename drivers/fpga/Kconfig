@@ -12,6 +12,15 @@ menuconfig FPGA
 
 if FPGA
 
+config FPGA_CFG_DEV
+	bool "FPGA cfg device registration for fpga-cfg module autoload"
+	default y
+	help
+	  Say Y here if you want to use fpga-cfg driver for userspace
+	  configuration interface for FPGA Manager framework. This will
+	  register appropriate platform device for automatic fpga-cfg
+	  driver loading.
+
 config FPGA_MGR_SOCFPGA
 	tristate "Altera SOCFPGA FPGA Manager"
 	depends on ARCH_SOCFPGA || COMPILE_TEST
