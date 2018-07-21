@@ -24,6 +24,7 @@ struct xilinx_spi_conf {
 	struct spi_device *spi;
 	struct gpio_desc *prog_b;
 	struct gpio_desc *done;
+	char mgr_name[64];
 };
 
 static enum fpga_mgr_states xilinx_spi_state(struct fpga_manager *mgr)
@@ -163,8 +164,11 @@ static int xilinx_spi_probe(struct spi_device *spi)
 		return PTR_ERR(conf->done);
 	}
 
-	mgr = devm_fpga_mgr_create(&spi->dev,
-				   "Xilinx Slave Serial FPGA Manager",
+	/* Register manager with unique name */
+	snprintf(conf->mgr_name, sizeof(conf->mgr_name), "%s %s",
+		 dev_driver_string(&spi->dev), dev_name(&spi->dev));
+
+	mgr = devm_fpga_mgr_create(&spi->dev, conf->mgr_name,
 				   &xilinx_spi_ops, conf);
 	if (!mgr)
 		return -ENOMEM;
