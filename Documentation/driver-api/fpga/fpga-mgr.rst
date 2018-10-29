@@ -125,3 +125,18 @@ API for implementing a new FPGA Manager driver
 
 .. kernel-doc:: drivers/fpga/fpga-mgr.c
    :functions: fpga_mgr_unregister
+
+Notification about added or removed FPGA managers
+-------------------------------------------------
+
+To register or unregister the notifier callback for signalling
+about the low level FPGA managers being added or removed, use
+
+* :c:func:`fpga_mgr_register_mgr_notifier` —  Add notifier for manager add/remove event
+* :c:func:`fpga_mgr_unregister_mgr_notifier` —  Remove notifier for manager events
+
+.. kernel-doc:: drivers/fpga/fpga-mgr.c
+   :functions: fpga_mgr_register_mgr_notifier
+
+.. kernel-doc:: drivers/fpga/fpga-mgr.c
+   :functions: fpga_mgr_unregister_mgr_notifier
