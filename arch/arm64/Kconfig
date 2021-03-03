@@ -943,6 +943,12 @@ config ARCH_SPARSEMEM_DEFAULT
 config ARCH_SELECT_MEMORY_MODEL
 	def_bool ARCH_SPARSEMEM_ENABLE
 
+config SPARSEMEM_SECTION_SIZE_BITS
+	int "Section size bits for sparsemem usage"
+	default "28" if (ARCH_AMBARELLA && MEMORY_HOTPLUG)
+	default "30"
+	depends on SPARSEMEM
+
 config ARCH_FLATMEM_ENABLE
 	def_bool !NUMA
 
@@ -960,6 +966,10 @@ config ARCH_WANT_HUGE_PMD_SHARE
 
 config ARCH_HAS_CACHE_LINE_SIZE
 	def_bool y
+
+config ARCH_MEMORY_PROBE
+	def_bool y
+	depends on MEMORY_HOTPLUG && ARCH_AMBARELLA
 
 config ARCH_ENABLE_SPLIT_PMD_PTLOCK
 	def_bool y if PGTABLE_LEVELS > 2

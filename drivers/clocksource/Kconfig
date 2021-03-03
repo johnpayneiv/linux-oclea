@@ -100,6 +100,10 @@ config ARMADA_370_XP_TIMER
 	help
 	  Enables the support for the Armada 370 and XP timer driver.
 
+config AMBARELLA_TIMER
+	bool
+	select TIMER_OF
+
 config MESON6_TIMER
 	bool "Meson6 timer driver" if COMPILE_TEST
 	select CLKSRC_MMIO

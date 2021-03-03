@@ -13,6 +13,90 @@ config ARCH_AGILEX
 	help
 	  This enables support for Intel's Agilex SoCFPGA Family.
 
+config ARCH_AMBARELLA
+	bool "Ambarella ARMv8 SoC Family"
+	select ARCH_REQUIRE_GPIOLIB
+	select PINCTRL
+	select PINCTRL_AMB
+	select RATIONAL
+	select POWER_RESET_AMBARELLA
+	select ARCH_SUPPORTS_RT
+	help
+	  This enables support for Ambarella ARMv8 SoC Family
+
+config ARCH_AMBARELLA_COMBO_NAND
+	depends on ARCH_AMBARELLA
+	def_bool n
+
+config ARCH_AMBARELLA_HW_RANDOM
+	depends on ARCH_AMBARELLA
+	def_bool n
+
+choice
+	prompt "Ambarella Chip REV"
+	depends on ARCH_AMBARELLA
+
+config ARCH_AMBARELLA_S5
+	bool "S5"
+	help
+	  Say Y here if you are using Ambarella S5.
+
+config ARCH_AMBARELLA_S5L
+	bool "S5L"
+	help
+	  Say Y here if you are using Ambarella S5L.
+
+config ARCH_AMBARELLA_S6LM
+	bool "S6LM"
+	select ARCH_AMBARELLA_COMBO_NAND
+	select ARCH_AMBARELLA_HW_RANDOM
+	help
+	  Say Y here if you are using Ambarella S6LM.
+
+config ARCH_AMBARELLA_CV1
+	bool "CV1"
+	select ARCH_AMBARELLA_COMBO_NAND
+	select ARCH_AMBARELLA_HW_RANDOM
+	help
+	  Say Y here if you are using Ambarella CV1.
+
+config ARCH_AMBARELLA_CV22
+	bool "CV22"
+	select ARCH_AMBARELLA_COMBO_NAND
+	select ARCH_AMBARELLA_HW_RANDOM
+	help
+	  Say Y here if you are using Ambarella CV22.
+
+config ARCH_AMBARELLA_CV2
+	bool "CV2"
+	select ARCH_AMBARELLA_COMBO_NAND
+	select ARCH_AMBARELLA_HW_RANDOM
+	help
+	  Say Y here if you are using Ambarella CV2.
+
+config ARCH_AMBARELLA_CV25
+	bool "CV25"
+	select ARCH_AMBARELLA_COMBO_NAND
+	select ARCH_AMBARELLA_HW_RANDOM
+	help
+	  Say Y here if you are using Ambarella CV25.
+
+config ARCH_AMBARELLA_CV2FS
+	bool "CV2FS"
+	select ARCH_AMBARELLA_COMBO_NAND
+	select ARCH_AMBARELLA_HW_RANDOM
+	help
+	  Say Y here if you are using Ambarella CV2FS.
+
+config ARCH_AMBARELLA_CV28
+	bool "CV28"
+	select ARCH_AMBARELLA_COMBO_NAND
+	select ARCH_AMBARELLA_HW_RANDOM
+	help
+	  Say Y here if you are using Ambarella CV28.
+
+endchoice
+
 config ARCH_SUNXI
 	bool "Allwinner sunxi 64-bit SoC Family"
 	select ARCH_HAS_RESET_CONTROLLER

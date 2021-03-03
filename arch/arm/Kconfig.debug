@@ -117,6 +117,10 @@ choice
 	prompt "Kernel low-level debugging port"
 	depends on DEBUG_LL
 
+	config AMBARELLA_DEBUG_LL_UART0
+		bool "Kernel low-level debugging on Ambarella UART0"
+		depends on ARCH_AMBARELLA
+
 	config DEBUG_ALPINE_UART0
 		bool "Kernel low-level debugging messages via Alpine UART0"
 		depends on ARCH_ALPINE

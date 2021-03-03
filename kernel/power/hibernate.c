@@ -744,7 +744,11 @@ int hibernate(void)
 		        flags |= SF_CRC32_MODE;
 
 		pm_pr_dbg("Writing image.\n");
+#ifdef CONFIG_ARCH_AMBARELLA
+		error = swsusp_write_mtd(flags);
+#else
 		error = swsusp_write(flags);
+#endif
 		swsusp_free();
 		if (!error) {
 			if (hibernation_mode == HIBERNATION_TEST_RESUME)
