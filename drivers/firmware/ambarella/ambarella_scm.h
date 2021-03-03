@@ -21,6 +21,10 @@
 #define AMBA_SCM_SVC_FREQ			0x1
 #define AMBA_SCM_CNTFRQ_SETUP_CMD		0x1
 
+/* OTP operation */
+#define AMBA_SIP_ACCESS_OTP			0x5
+#define AMBA_SIP_GET_AMBA_UNIQUE_ID		0x1
+
 #define AMBA_SCM_SVC_PM				0x2	/* Deprecated */
 #define AMBA_SCM_PM_GPIO_SETUP			0x1	/* Deprecated */
 

@@ -1731,6 +1731,78 @@ err:
 	mutex_unlock(&phydev->mdio.bus->mdio_lock);
 	return ret;
 }
+/*
+ * Ambarella International LP
+ * Optional properties:
+ *	mscc-rxc-dly: Range of the value 0 to 7
+ *	mscc-txc-dly: Range of the value 0 to 7
+ */
+
+static int vsc8531_config_init(struct phy_device *phydev)
+{
+	int rc, i, phy_id;
+	struct vsc8531_private *vsc8531 = phydev->priv;
+	const struct device *dev = &phydev->mdio.dev;
+	const struct device_node *of_node = dev->of_node;
+	u32 val;
+
+	if (of_node) {
+		if (!of_property_read_u32(of_node, "mscc-rxc-dly", &val) && val < 8) {
+
+			phydev->mdix_ctrl = ETH_TP_MDI_AUTO;
+			mutex_lock(&phydev->lock);
+			val <<= RGMII_RX_CLK_DELAY_POS;
+			rc = phy_modify_paged(phydev, MSCC_PHY_PAGE_EXTENDED_2,
+					MSCC_PHY_RGMII_CNTL, RGMII_RX_CLK_DELAY_MASK,
+					val);
+			mutex_unlock(&phydev->lock);
+		}
+
+		if (!of_property_read_u32(of_node, "mscc-txc-dly", &val) && val < 8) {
+
+			phydev->mdix_ctrl = ETH_TP_MDI_AUTO;
+			mutex_lock(&phydev->lock);
+			/*
+			 * RGMII_TX_CLK_DELAY_POS:	0
+			 * RGMII_TX_CLK_DELAY_MASK:	0x7
+			 * */
+			val <<= 0;
+			rc = phy_modify_paged(phydev, MSCC_PHY_PAGE_EXTENDED_2,
+					MSCC_PHY_RGMII_CNTL, 0x7,
+					val);
+			mutex_unlock(&phydev->lock);
+		}
+	}
+
+
+	rc = vsc85xx_mac_if_set(phydev, phydev->interface);
+	if (rc)
+		return rc;
+
+	rc = vsc85xx_edge_rate_cntl_set(phydev, vsc8531->rate_magic);
+	if (rc)
+		return rc;
+
+	phy_id = phydev->drv->phy_id & phydev->drv->phy_id_mask;
+	if (PHY_ID_VSC8531 == phy_id || PHY_ID_VSC8541 == phy_id ||
+			PHY_ID_VSC8530 == phy_id || PHY_ID_VSC8540 == phy_id) {
+		rc = vsc8531_pre_init_seq_set(phydev);
+		if (rc)
+			return rc;
+	}
+
+	rc = vsc85xx_eee_init_seq_set(phydev);
+	if (rc)
+		return rc;
+
+	for (i = 0; i < vsc8531->nleds; i++) {
+		rc = vsc85xx_led_cntl_set(phydev, i, vsc8531->leds_mode[i]);
+		if (rc)
+			return rc;
+	}
+
+	return 0;
+}
 
 static int vsc85xx_config_init(struct phy_device *phydev)
 {
@@ -2375,7 +2447,11 @@ static struct phy_driver vsc85xx_driver[] = {
 	.phy_id_mask    = 0xfffffff0,
 	/* PHY_GBIT_FEATURES */
 	.soft_reset	= &genphy_soft_reset,
-	.config_init    = &vsc85xx_config_init,
+#if 0
+	.config_init	= &vsc85xx_config_init,
+#else	/* Ambarella FIXUP */
+	.config_init    = &vsc8531_config_init,
+#endif
 	.config_aneg    = &vsc85xx_config_aneg,
 	.aneg_done	= &genphy_aneg_done,
 	.read_status	= &vsc85xx_read_status,

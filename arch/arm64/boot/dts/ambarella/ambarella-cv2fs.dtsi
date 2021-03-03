@@ -1038,7 +1038,7 @@
 			interrupts = <0 78 0x4>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&spi0_pins>;
-			amb,clk-freq = <54000000>;
+			clocks = <&gclk_ssi>;
 			/* amb,dma-used; */
 			dmas = <&dma0 1>, <&dma0 2>;
 			dma-names = "tx", "rx";
@@ -1052,7 +1052,7 @@
 			interrupts = <0 79 0x4>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&spi1_pins_b>;
-			amb,clk-freq = <54000000>;
+			clocks = <&gclk_ssi>;
 			/* amb,dma-used; */
 			dmas = <&dma0 3>, <&dma0 4>;
 			dma-names = "tx", "rx";
@@ -1067,7 +1067,7 @@
 			interrupts = <0 80 0x4>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&spi2_pins>;
-			amb,clk-freq = <54000000>;
+			clocks = <&gclk_ssi>;
 			/* amb,dma-used; */
 			dmas = <&dma1 17>, <&dma1 18>;
 			dma-names = "tx", "rx";
@@ -1082,7 +1082,7 @@
 			interrupts = <0 81 0x4>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&spi3_pins>;
-			amb,clk-freq = <54000000>;
+			clocks = <&gclk_ssi>;
 			/* amb,dma-used; */
 			dmas = <&dma1 19>, <&dma1 20>;
 			dma-names = "tx", "rx";
@@ -1097,7 +1097,7 @@
 			interrupts = <0 134 0x4>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&spi4_pins>;
-			amb,clk-freq = <54000000>;
+			clocks = <&gclk_ssi>;
 			/* amb,dma-used; */
 			dmas = <&dma1 23>, <&dma1 24>;
 			dma-names = "tx", "rx";
@@ -1112,7 +1112,7 @@
 			interrupts = <0 135 0x4>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&spi5_pins>;
-			amb,clk-freq = <54000000>;
+			clocks = <&gclk_ssi>;
 			/* amb,dma-used; */
 			dmas = <&dma1 25>, <&dma1 26>;
 			dma-names = "tx", "rx";
@@ -1704,6 +1704,8 @@
 			reg = <0xed08003c 4>;
 			clocks = <&gclk_core>;
 			clock-output-names = "gclk_ssi";
+			assigned-clocks = <&gclk_ssi>;
+			assigned-clock-rates = <54000000>;
 			amb,div-width = <24>;
 			amb,div-shift = <0>;
 		};

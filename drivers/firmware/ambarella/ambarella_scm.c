@@ -52,6 +52,36 @@ int ambarella_aarch64_cntfrq_update(void)
 }
 EXPORT_SYMBOL(ambarella_aarch64_cntfrq_update);
 
+/* uuidbuf space at least 128bits */
+int ambarella_otp_get_uuid(u32 *uuidbuf)
+{
+	u32 fn;
+	u32 cmd;
+	struct arm_smccc_res res;
+
+	if (!uuidbuf) {
+		return -EINVAL;
+	}
+
+	fn = SVC_SCM_FN(AMBA_SIP_ACCESS_OTP, AMBA_SIP_GET_AMBA_UNIQUE_ID);
+	cmd = ARM_SMCCC_CALL_VAL(ARM_SMCCC_FAST_CALL, ARM_SMCCC_SMC_64,
+			ARM_SMCCC_OWNER_SIP, fn);
+
+	arm_smccc_smc(cmd, 0, 0, 0, 0, 0, 0, 0, &res);
+
+	if (res.a0) {
+		return -EINVAL;
+	}
+
+	uuidbuf[0] = res.a1 & 0xFFFFFFFF;
+	uuidbuf[1] = (res.a1 >> 32) & 0xFFFFFFFF;
+	uuidbuf[2] = res.a2 & 0xFFFFFFFF;
+	uuidbuf[3] = (res.a2 >> 32) & 0xFFFFFFFF;
+
+	return res.a0;
+}
+EXPORT_SYMBOL(ambarella_otp_get_uuid);
+
 /* ---------------------------------------------------------------------------- */
 
 int __init ambarella_scm_init(void)

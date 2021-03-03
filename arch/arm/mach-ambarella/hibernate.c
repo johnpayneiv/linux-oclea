@@ -26,20 +26,17 @@
 #include <asm/sections.h>
 #include <linux/mtd/mtd.h>
 #include <linux/of.h>
-#include <linux/lzo.h>
+#include <linux/lz4.h>
 #include <linux/crc32.h>
 
 #define HIBERNATE_MTD_NAME	"swp"
-#define LZO_HEADER		sizeof(size_t)
-#define LZO_UNC_PAGES		32
-#define LZO_UNC_SIZE		(LZO_UNC_PAGES * PAGE_SIZE)
-
-#define LZO_CMP_PAGES		DIV_ROUND_UP(lzo1x_worst_compress(LZO_UNC_SIZE) + \
-					LZO_HEADER, PAGE_SIZE)
-#define LZO_CMP_SIZE		(LZO_CMP_PAGES * PAGE_SIZE)
+#define LZ4_HEADER		sizeof(size_t)
+#define LZ4_UNC_PAGES		32
+#define LZ4_UNC_SIZE		(LZ4_UNC_PAGES * PAGE_SIZE)
+#define LZ4_CMP_SIZE		(LZ4_UNC_SIZE + LZ4_UNC_SIZE / 255 + 16)
 
 static int mtd_page_offset = 0;
-static int hibernate_lzo_enable = 0;
+static int hibernate_cmp_enable = 0;
 static int hibernate_crc32_enable = 1;
 
 static const unsigned int crc32_tab[] = {
@@ -170,6 +167,9 @@ static int hibernate_write_page(struct mtd_info *mtd, void *buf)
 	offset = mtd_page_offset;
 #endif
 
+	if (offset * PAGE_SIZE >= mtd->size)
+		return -ENOMEM;
+
 	if(offset == 0)
 		return -EINVAL;
 
@@ -180,6 +180,7 @@ static int hibernate_write_page(struct mtd_info *mtd, void *buf)
 	}
 
 	mtd_page_offset = offset;
+
 	return 0;
 }
 
@@ -253,40 +254,40 @@ static int hibernate_save_meta_pages(struct mtd_info *mtd,
 	return ret;
 }
 #if 0
-static void __lzo1x_decompress_safe(unsigned char *in, size_t len)
+static void __lz41x_decompress_safe(unsigned char *in, size_t len)
 {
-	size_t out_len = LZO_UNC_SIZE;
+	size_t out_len = LZ4_UNC_SIZE;
 	unsigned char *out;
 
-	out = vmalloc(LZO_UNC_SIZE);
-	lzo1x_decompress_safe(in, len, out, &out_len);
+	out = vmalloc(LZ4_UNC_SIZE);
+	lz41x_decompress_safe(in, len, out, &out_len);
 
-	printk("__lzo1x_decompress_safe %08x - %08x\n", len, out_len);
+	printk("__lz41x_decompress_safe %08x - %08x\n", len, out_len);
 	vfree(out);
 }
 #endif
-static int hibernate_save_image_lzo(struct swsusp_info *header,
+static int hibernate_save_image_lz4(struct swsusp_info *header,
 		struct mtd_info *mtd,
 		struct snapshot_handle *snapshot)
 {
 	unsigned char *in, *out, *work_area;
 	size_t out_len, offset = 0;
-	int ret, nr_pages_unc = 0, nr_pages_lzo = 0;
+	int ret, nr_pages_unc = 0, nr_pages_lz4 = 0;
 	unsigned int unc_crc = 0, cmp_crc = 0;
-#ifdef LZO_DEBUG
+#ifdef LZ4_DEBUG
 	int offset_debug, count = 0;
 #endif
 
-	in = vmalloc(LZO_UNC_SIZE);
-	out = vmalloc(LZO_CMP_SIZE);
-	work_area = vmalloc(LZO_UNC_SIZE);
+	in = vmalloc(LZ4_UNC_SIZE);
+	out = vmalloc(LZ4_CMP_SIZE);
+	work_area = vmalloc(LZ4_MEM_COMPRESS);
 
 
 	while (1) {
-		for (offset = 0; offset < LZO_UNC_SIZE; offset += PAGE_SIZE) {
+		for (offset = 0; offset < LZ4_UNC_SIZE; offset += PAGE_SIZE) {
 			ret = snapshot_read_next(snapshot);
 			if (ret < 0)
-				goto lzo_exception;
+				goto lz4_exception;
 
 			if (!ret)
 				break;
@@ -295,51 +296,55 @@ static int hibernate_save_image_lzo(struct swsusp_info *header,
 			nr_pages_unc++;
 		}
 		if (!offset)
-			goto lzo_finish;
+			goto lz4_finish;
 
 		unc_crc = __crc32(unc_crc, in, offset);
 
-		lzo1x_1_compress(in, offset, out + LZO_HEADER, &out_len,
-				work_area);
+		out_len = LZ4_compress_default(in, out + LZ4_HEADER, offset,
+				LZ4_CMP_SIZE - LZ4_HEADER, work_area);
 
-		if (!out_len || out_len > lzo1x_worst_compress(LZO_UNC_SIZE)) {
-			printk("ERR: Invalid LZO compress length!\n");
-			goto lzo_exception;
+		if (!out_len) {
+			printk("ERR: Invalid LZ4 compress length!\n");
+			goto lz4_exception;
 		}
 
 		*(size_t *)out = out_len;
 
-		cmp_crc = __crc32(cmp_crc, out + LZO_HEADER, out_len);
+		cmp_crc = __crc32(cmp_crc, out + LZ4_HEADER, out_len);
 
-#ifdef LZO_DEBUG
+#ifdef LZ4_DEBUG
 		offset_debug = mtd_page_offset + 1;
 #endif
 
-		for (offset = 0; offset < out_len + LZO_HEADER; offset += PAGE_SIZE) {
-			hibernate_write_page(mtd, out + offset);
-			nr_pages_lzo++;
+		for (offset = 0; offset < out_len + LZ4_HEADER; offset += PAGE_SIZE) {
+			if (hibernate_write_page(mtd, out + offset)) {
+				printk("Out of media partition memory.\n");
+				goto lz4_exception;
+			}
+			nr_pages_lz4++;
 		}
-#ifdef LZO_DEBUG
+#ifdef LZ4_DEBUG
 		count ++;
-		printk("[LZO]%d:%d: %08x[%08x] compress to %08x [%08x]\n",
-				offset_debug, count, LZO_UNC_SIZE, unc_crc,
-				out_len, cmp_crc);
+		printk("[LZ4]%d:%d: %08lx[%08x] compress to %08lx [%08x] %lx\n",
+				offset_debug, count, LZ4_UNC_SIZE, unc_crc,
+				out_len, cmp_crc, mtd->size);
 #endif
 
-		//__lzo1x_decompress_safe(out + LZO_HEADER, out_len);
+		//__lz41x_decompress_safe(out + LZ4_HEADER, out_len);
 	}
 
-lzo_finish:
+lz4_finish:
 	header->crc32 = unc_crc;
-	header->lzo_enable = hibernate_lzo_enable;
+	header->lzo_enable = hibernate_cmp_enable;
 
 	/* save the header */
 	mtd_page_offset = 0;
-	hibernate_write_page(mtd, header);
+	if (hibernate_write_page(mtd, header))
+		goto lz4_exception;
 
 	printk("LINUX:	%d pages, crc = %08x\n", nr_pages_unc, unc_crc);
-	printk("LZO:	%d pages, crc = %08x\n", nr_pages_lzo, cmp_crc);
-lzo_exception:
+	printk("LZ4:	%d pages, crc = %08x\n", nr_pages_lz4, cmp_crc);
+lz4_exception:
 	vfree(in);
 	vfree(out);
 	vfree(work_area);
@@ -373,18 +378,18 @@ static int hibernate_mtd_write(struct mtd_info *mtd)
 	header = (struct swsusp_info *)data_of(snapshot);
 
 	/* TODO: SWP partition space size check */
-	if (!hibernate_lzo_enable && header->pages * 0x1000 > mtd->size) {
-		printk("ERR: swp partition[0x%llx] has not enough space for the "
-				"kernel snapshot[0x%lx]\n", mtd->size, header->pages * 0x1000);
+	if (!hibernate_cmp_enable && header->pages * 0x1000 > mtd->size) {
+		printk("ERR: swp partition[0x%llx] has not enough space for the \
+				kernel snapshot[0x%lx]\n", mtd->size, header->pages * 0x1000);
 			return -ENOMEM;
 	}
 
 	memcpy(copy, header, sizeof(struct swsusp_info));
 
-#ifdef LZO_DEBUG
-	printk("[LZO] pages:		%ld\n", header->pages);
-	printk("[LZO] image_pages:	%ld\n", header->image_pages);
-	printk("[LZO] nr_meta_pages:	%ld\n", header->pages - header->image_pages - 1);
+#ifdef LZ4_DEBUG
+	printk("[LZ4] pages:		%ld\n", header->pages);
+	printk("[LZ4] image_pages:	%ld\n", header->image_pages);
+	printk("[LZ4] nr_meta_pages:	%ld\n", header->pages - header->image_pages - 1);
 #endif
 
 	/*
@@ -397,11 +402,11 @@ static int hibernate_mtd_write(struct mtd_info *mtd)
 	mtd_page_offset ++;
 
 	printk("%s: save the linux snapshot\n",
-			hibernate_lzo_enable ? "LZO" : "ORG");
+			hibernate_cmp_enable ? "LZ4" : "ORG");
 
-	if (hibernate_lzo_enable) {
+	if (hibernate_cmp_enable) {
 		hibernate_save_meta_pages(mtd, &snapshot, nr_meta_pages);
-		error = hibernate_save_image_lzo(copy , mtd, &snapshot);
+		error = hibernate_save_image_lz4(copy , mtd, &snapshot);
 	} else {
 		error = hibernate_save_image(copy, mtd, &snapshot);
 	}
@@ -414,7 +419,11 @@ out_finish:
 }
 static void hibernate_of_parse(void)
 {
-	hibernate_lzo_enable = !!of_property_read_bool(of_chosen,
+	hibernate_cmp_enable = !!of_property_read_bool(of_chosen,
+			"ambarella,hibernate-lz4-enable");
+
+	/* Backward compatibility */
+	hibernate_cmp_enable = !!of_property_read_bool(of_chosen,
 			"ambarella,hibernate-lzo-enable");
 #if 0 /* FIXME */
 	hibernate_crc32_enable = !!of_property_read_bool(of_chosen,

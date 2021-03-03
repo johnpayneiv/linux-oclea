@@ -23,6 +23,10 @@
 #include <linux/types.h>
 #include <linux/clk.h>
 #include <linux/device.h>
+#include <linux/of.h>
+#include <linux/of_net.h>
+#include <linux/of_mdio.h>
+#include <linux/of_gpio.h>
 #include <linux/etherdevice.h>
 #include <linux/platform_device.h>
 #include <linux/time64.h>
@@ -186,21 +190,19 @@ int ambeth_set_hwtstamp(struct net_device *dev, struct ifreq *ifr)
 		ctrl_val |= PTP_CTRL_TSCTRLSSR;
 		writel(ctrl_val, lp->regbase + MAC_PTP_CTRL_OFFSET);
 
-		if (lp->clk_ptp_rate > 50000000) {
-			ssinc = 1000000000ULL / 50000000ULL;
-		} else {
-			ssinc = 1000000000ULL / 50000000ULL;	/* (10e9 / 50HMZ)) x (60MHZ / R) */
-			ssinc *= 60000000;
-			do_div(ssinc, lp->clk_ptp_rate);
-		}
-		writel(ssinc, lp->regbase + MAC_PTP_SSINC_OFFSET);
-
-		addend = (1ULL << 32) * 50000000;
-		if (lp->clk_ptp_rate > 50000000)
-			do_div(addend, lp->clk_ptp_rate);
+		if (ctrl_val & PTP_CTRL_TSCFUPDT)
+			ssinc = (2000000000ULL / lp->clk_ptp_rate);
 		else
-			do_div(addend, 60000000);
+			ssinc = (1000000000ULL / lp->clk_ptp_rate);
 
+		/* 0.465ns accuracy */
+		if (!(ctrl_val & PTP_CTRL_TSCFUPDT))
+			ssinc = (ssinc * 1000) / 465;
+
+		ssinc &= PTP_SSIR_SSINC_MASK;
+
+		writel(ssinc, lp->regbase + MAC_PTP_SSINC_OFFSET);
+		addend = lp->default_adden;
 		writel(addend, lp->regbase + MAC_PTP_ADDEND_OFFSET);
 		ambeth_set_hwctrl(lp, PTP_CTRL_TSADDREG);
 
@@ -264,12 +266,7 @@ static int ambeth_adjust_freq(struct ptp_clock_info *ptp, s32 ppb)
 		neg_adj = 1;
 	}
 
-	addend = (1ULL << 32) * 50000000;
-	if (lp->clk_ptp_rate > 50000000)
-		do_div(addend, lp->clk_ptp_rate);
-	else
-		do_div(addend, 60000000);
-
+	addend = lp->default_adden;
 	adj = addend;
 	adj *= ppb;
 	diff = div_u64(adj, 1000000000ULL);
@@ -314,10 +311,100 @@ static int ambeth_adjust_time(struct ptp_clock_info *ptp, s64 delta)
 	return 0;
 }
 
+int ambaeth_flex_pps_config(void __iomem *ioaddr, int index,
+			   struct ambeth_mac_pps_cfg *cfg, bool enable,
+			   u32 sub_second_inc, u32 systime_flags)
+{
+	u32 tnsec = readl(ioaddr + MAC_PPS_TARGET_TIME_NSEC);
+	u32 val = readl(ioaddr + MAC_PPS_CONTROL);
+	u64 period;
+
+	if (!cfg->available)
+		return -EINVAL;
+
+	if (tnsec & TRGTBUSY0)
+		return -EBUSY;
+
+	if (!sub_second_inc || !systime_flags)
+		return -EINVAL;
+
+	if (!enable) {
+		val |= PPSCMD(0x5);
+		val |= PPSEN0;
+		writel(val, ioaddr + MAC_PPS_CONTROL);
+		return 0;
+	}
+
+	val &= ~TRGTMODSEL_MASK;	/* clear mode */
+	val |= PPSCMD(0x2);
+	val |= TRGTMODSEL(0x3);		/* output PPS0 no interrupt */
+	val |= PPSEN0;			/* enable flexiable pps output */
+
+	writel(cfg->start.tv_sec, ioaddr + MAC_PPS_TARGET_TIME_SEC);
+
+	if (!(systime_flags & PTP_CTRL_TSCTRLSSR))
+		cfg->start.tv_nsec = (cfg->start.tv_nsec * 1000) / 465;
+	writel(cfg->start.tv_nsec, ioaddr + MAC_PPS_TARGET_TIME_NSEC);
+
+	period = cfg->period.tv_sec * 1000000000;
+	period += cfg->period.tv_nsec;
+
+	do_div(period, sub_second_inc);
+
+	if (period <= 1)
+		return -EINVAL;
+
+	writel(period - 1, ioaddr + MAC_PPS_INTERVAL);
+
+	period >>= 1;				/* assume pps output square wave */
+	if (period <= 1)
+		return -EINVAL;
+
+	writel(period - 1, ioaddr + MAC_PPS_WIDTH);
+
+	writel(val, ioaddr + MAC_PPS_CONTROL);	/* Finally, activate it */
+
+	return 0;
+}
+
 static int ambeth_ptp_enable(struct ptp_clock_info *ptp,
 		struct ptp_clock_request *rq, int on)
 {
-	return -EOPNOTSUPP;
+	int ret = -EOPNOTSUPP;
+	unsigned long flags;
+	struct ambeth_info *lp =
+	    container_of(ptp, struct ambeth_info, ptp_clk_ops);
+
+	struct ambeth_mac_pps_cfg cfg = {0,};
+
+	switch (rq->type) {
+	case PTP_CLK_REQ_PEROUT:
+		/* Reject requests with unsupported flags */
+		if (rq->perout.flags)
+			return -EOPNOTSUPP;
+		if (!lp->pps_avail)
+			return -EOPNOTSUPP;
+
+		cfg.available = lp->pps_avail;
+		cfg.start.tv_sec = rq->perout.start.sec;
+		cfg.start.tv_nsec = rq->perout.start.nsec;
+		cfg.period.tv_sec = rq->perout.period.sec;
+		cfg.period.tv_nsec = rq->perout.period.nsec;
+
+		spin_lock_irqsave(&lp->ptp_spinlock, flags);
+		ret = ambaeth_flex_pps_config(lp->regbase,
+					     rq->perout.index,
+					     &cfg,
+					     on,
+					     lp->sub_second_inc,
+					     lp->systime_flags);
+		spin_unlock_irqrestore(&lp->ptp_spinlock, flags);
+		break;
+	default:
+		break;
+	}
+
+	return ret;
 }
 
 static int ambeth_set_time(struct ptp_clock_info *ptp,
@@ -375,10 +462,11 @@ static struct ptp_clock_info ambarella_ptp_clock_ops = {
 
 int ambeth_ptp_init(struct platform_device *pdev)
 {
+	u64 tmp = 0;
+	struct clk *clk = NULL;
 	struct net_device *ndev = platform_get_drvdata(pdev);
 	struct ambeth_info *lp = netdev_priv(ndev);
-	struct clk *clk;
-	u64 tmp;
+	struct device_node *np = pdev->dev.of_node;
 
 	lp->ptp_clk_ops = ambarella_ptp_clock_ops;
 	lp->hwts_rx_en = false;
@@ -391,18 +479,20 @@ int ambeth_ptp_init(struct platform_device *pdev)
 	}
 
 	lp->clk_ptp_rate = clk_get_rate(clk);
-	if (lp->clk_ptp_rate > 50000000)
-		tmp = lp->clk_ptp_rate;
-	else if (lp->clk_ptp_rate)	/* fix 60MHZ ? */
-		tmp = 60000000;
-	else
-		return -EINVAL;
 
-	tmp *= 1000000000ULL;
-	do_div(tmp, 50000000);
-	tmp = tmp - 1000000000ULL - 1;
-	lp->ptp_clk_ops.max_adj = (u32)tmp;
+	lp->pps_avail = !!of_find_property(np, "amb,pps-avail", NULL);
+	if (lp->pps_avail) {
+		lp->ptp_clk_ops.n_per_out = 1;	/* there is pps output */
+		tmp = 2000000000ULL;
+		do_div(tmp, lp->clk_ptp_rate);
+		lp->sub_second_inc = tmp;	/* double subinc, 1ns && fine update */
+		lp->systime_flags = PTP_CTRL_TSCTRLSSR | PTP_CTRL_TSUPDT;
+	} else {
+		lp->ptp_clk_ops.n_per_out = 0;	/* there is no pps output */
+	}
 
+	lp->default_adden = (1ULL << 31);	/* default_adden set to half */
+	lp->ptp_clk_ops.max_adj = lp->clk_ptp_rate;
 	lp->ptp_clk = ptp_clock_register(&lp->ptp_clk_ops, &pdev->dev);
 
 	if (IS_ERR_OR_NULL(lp->ptp_clk)) {

@@ -1,4 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Copyright (c) 2020 Ambarella International LP
+ *
+ */
 #include <linux/clk.h>
+
 extern int ambarella_aarch64_cntfrq_update(void);
 static struct clocksource csfake;
 

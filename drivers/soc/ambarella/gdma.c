@@ -81,7 +81,8 @@ static inline int transfer_big_unit(u8 *dest_addr, u8 *src_addr, u32 size)
 		writel_relaxed(0, ambarella_gdma->regbase + GDMA_CLUT_BASE_OFFSET);
 
 		/* start 2D copy */
-		writel_relaxed(1, ambarella_gdma->regbase + GDMA_OPCODE_OFFSET);
+		writel(1, ambarella_gdma->regbase + GDMA_OPCODE_OFFSET);
+		wait_for_completion(&transfer_completion);
 	}
 	return 0;
 
@@ -105,7 +106,8 @@ static inline int transfer_small_unit(u8 *dest_addr, u8 *src_addr, u32 size)
 	writel_relaxed(0, ambarella_gdma->regbase + GDMA_CLUT_BASE_OFFSET);
 
 	/* start linear copy */
-	writel_relaxed(0, ambarella_gdma->regbase + GDMA_OPCODE_OFFSET);
+	writel(0, ambarella_gdma->regbase + GDMA_OPCODE_OFFSET);
+	wait_for_completion(&transfer_completion);
 
 	return 0;
 }
@@ -185,7 +187,7 @@ int dma_memcpy(u8 *dest_addr, u8 *src_addr, u32 size)
 
 		transfer_once(dest_addr + transferred_size,
 			src_addr + transferred_size, current_transfer_size);
-		wait_for_completion(&transfer_completion);
+
 		transferred_size += current_transfer_size;
 	}
 
@@ -196,6 +198,43 @@ int dma_memcpy(u8 *dest_addr, u8 *src_addr, u32 size)
 	return 0;
 }
 EXPORT_SYMBOL(dma_memcpy);
+
+/* this is synchronous function, will wait till transfer finishes */
+int dma_noncache_memcpy(u8 *dest_addr, u8 *src_addr, u32 size)
+{
+	int remain_size = size;
+	int transferred_size = 0;
+	int current_transfer_size;
+
+	if (size <= 0) {
+		return -1;
+	}
+
+	if (size & 0x1) {
+		printk("Size must be even !\n");
+		return -1;
+	}
+
+	mutex_lock(&transfer_mutex);
+	while (remain_size > 0)	{
+		if (remain_size > MAX_TRANSFER_SIZE_ONCE) {
+			remain_size -= MAX_TRANSFER_SIZE_ONCE;
+			current_transfer_size = MAX_TRANSFER_SIZE_ONCE;
+		} else {
+			current_transfer_size = remain_size;
+			remain_size = 0;
+		}
+
+		transfer_once(dest_addr + transferred_size,
+			src_addr + transferred_size, current_transfer_size);
+
+		transferred_size += current_transfer_size;
+	}
+	mutex_unlock(&transfer_mutex);
+
+	return 0;
+}
+EXPORT_SYMBOL(dma_noncache_memcpy);
 
 static inline int transfer_pitch_unit(u8 *dest_addr, u8 *src_addr,
 					u16 src_pitch, u16 dest_pitch, u16 width, u16 height)
@@ -218,7 +257,7 @@ static inline int transfer_pitch_unit(u8 *dest_addr, u8 *src_addr,
 		writel_relaxed(0, ambarella_gdma->regbase + GDMA_CLUT_BASE_OFFSET);
 
 		/* start 2D copy */
-		writel_relaxed(1, ambarella_gdma->regbase + GDMA_OPCODE_OFFSET);
+		writel(1, ambarella_gdma->regbase + GDMA_OPCODE_OFFSET);
 		wait_for_completion(&transfer_completion);
 
 		height = height - MAX_TRANSFER_2D_HEIGHT;
@@ -238,7 +277,7 @@ static inline int transfer_pitch_unit(u8 *dest_addr, u8 *src_addr,
 		writel_relaxed(0, ambarella_gdma->regbase + GDMA_CLUT_BASE_OFFSET);
 
 		/* start 2D copy */
-		writel_relaxed(1, ambarella_gdma->regbase + GDMA_OPCODE_OFFSET);
+		writel(1, ambarella_gdma->regbase + GDMA_OPCODE_OFFSET);
 		wait_for_completion(&transfer_completion);
 	}
 

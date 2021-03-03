@@ -60,6 +60,8 @@ struct ambarella_phy {
 	void __iomem *pol_reg;
 	void __iomem *ana_reg;
 	void __iomem *own_reg;
+	void __iomem *ctrl_reg;
+	void __iomem *ctrl2_reg;
 	u8 host_phy_num;
 
 	int gpio_id;
@@ -70,6 +72,9 @@ struct ambarella_phy {
 	bool hub_active;
 	u8 port_type;	/* the behavior of the device port working */
 	u8 phy_route;	/* route D+/D- signal to device or host port */
+	bool usbp_ctrl_set;
+	u32 ctrl_device[2];
+	u32 ctrl_host[2];
 
 #ifdef CONFIG_PM
 	u32 pol_val;
@@ -87,11 +92,19 @@ static inline bool ambarella_usb0_is_host(struct ambarella_phy *amb_phy)
 static inline void ambarella_switch_to_host(struct ambarella_phy *amb_phy)
 {
 	clrbitsl(amb_phy->own_reg, USB0_IS_HOST_MASK);
+	if (amb_phy->usbp_ctrl_set) {
+		writel_relaxed(amb_phy->ctrl_host[0], amb_phy->ctrl_reg);
+		writel_relaxed(amb_phy->ctrl_host[1], amb_phy->ctrl2_reg);
+	}
 }
 
 static inline void ambarella_switch_to_device(struct ambarella_phy *amb_phy)
 {
 	setbitsl(amb_phy->own_reg, USB0_IS_HOST_MASK);
+	if (amb_phy->usbp_ctrl_set) {
+		writel_relaxed(amb_phy->ctrl_device[0], amb_phy->ctrl_reg);
+		writel_relaxed(amb_phy->ctrl_device[1], amb_phy->ctrl2_reg);
+	}
 }
 
 static inline void ambarella_check_otg(struct ambarella_phy *amb_phy)
@@ -315,6 +328,35 @@ static int ambarella_init_host_phy(struct platform_device *pdev,
 	amb_phy->own_reg = ambarella_phy_get_reg(pdev, 2);
 	if (!amb_phy->own_reg)
 		return -ENXIO;
+
+	amb_phy->usbp_ctrl_set = !!of_find_property(np, "amb,usbp-ds-set", NULL);
+	if (amb_phy->usbp_ctrl_set) {
+		/* get register for usb phy ctrl configure */
+		amb_phy->ctrl_reg = ambarella_phy_get_reg(pdev, 3);
+		if (!amb_phy->ctrl_reg)
+			return -ENXIO;
+
+		/* get register for usb phy ctrl2 configure */
+		amb_phy->ctrl2_reg = ambarella_phy_get_reg(pdev, 4);
+		if (!amb_phy->ctrl2_reg)
+			return -ENXIO;
+
+		rval = of_property_read_u32_array(np, "amb,ctrl-device",
+			amb_phy->ctrl_device, 2);
+		if (rval < 0) {
+			amb_phy->usbp_ctrl_set = 0;
+			dev_dbg(&pdev->dev, "No device ctrl setting defined!\n");
+		}
+
+		if (amb_phy->usbp_ctrl_set) {
+			rval = of_property_read_u32_array(np, "amb,ctrl-host",
+				amb_phy->ctrl_host, 2);
+			if (rval < 0) {
+				amb_phy->usbp_ctrl_set = 0;
+				dev_dbg(&pdev->dev, "No host ctrl setting defined!\n");
+			}
+		}
+	}
 
 	/* see RCT Programming Guide for detailed info about ocp and owner */
 	rval = of_property_read_u32(np, "amb,ocp-polarity", &ocp);

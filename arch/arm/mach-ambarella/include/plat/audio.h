@@ -142,6 +142,9 @@
 #define I2S_RX_SHIFT_ENB			(1 << 1)
 #define I2S_TX_SHIFT_ENB			(1 << 0)
 
+#define I2S_TX_IDLE_FLAG_BIT		(1 << 4)
+#define I2S_RX_IDLE_FLAG_BIT		(1 << 4)
+
 #define I2S_2CHANNELS_ENB			0x00
 #define I2S_4CHANNELS_ENB			0x01
 #define I2S_6CHANNELS_ENB			0x02

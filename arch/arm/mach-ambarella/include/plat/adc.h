@@ -34,8 +34,8 @@
 #define ADC_NUM_CHANNELS		4
 #elif (CHIP_REV == CV1) || (CHIP_REV == CV2) || (CHIP_REV == CV22)
 #define ADC_NUM_CHANNELS		3
-#else
-#define ADC_NUM_CHANNELS		2
+#else /* ch0 always exists, but no pin out for ch0 */
+#define ADC_NUM_CHANNELS		3
 #endif
 
 #if (CHIP_REV == S2L) || (CHIP_REV == S3) || (CHIP_REV == S3L) || \

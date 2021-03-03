@@ -82,19 +82,14 @@ static int ambarella_spi_of_parse(struct platform_device *pdev,
 {
 	struct device_node *np = pdev->dev.of_node;
 	struct ambarella_spi *ambspi = spi_master_get_devdata(master);
-	int rval;
 
-	ambspi->clk = clk_get(NULL, "gclk_ssi");
+	ambspi->clk = of_clk_get(np, 0);
 	if (IS_ERR(ambspi->clk)) {
 		dev_err(&pdev->dev, "Get PLL failed!\n");
 		return PTR_ERR(ambspi->clk);
 	}
 
-	rval = of_property_read_u32(np, "amb,clk-freq", &ambspi->clk_freq);
-	if (rval < 0) {
-		dev_err(&pdev->dev, "invalid clk-freq! %d\n", rval);
-		return rval;
-	}
+	ambspi->clk_freq = clk_get_rate(ambspi->clk);
 
 	return 0;
 }
@@ -642,7 +637,6 @@ static int ambarella_spi_probe(struct platform_device *pdev)
 		goto exit_free_master;
 	}
 
-	clk_set_rate(bus->clk, bus->clk_freq);
 	writel_relaxed(0, reg + SPI_SSIENR_OFFSET);
 	writel_relaxed(0, reg + SPI_IMR_OFFSET);
 
