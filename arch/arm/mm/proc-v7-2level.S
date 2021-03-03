@@ -159,4 +159,4 @@ ENDPROC(cpu_v7_set_pte_ext)
 	.align	2
 	.type	v7_crval, #object
 v7_crval:
-	crval	clear=0x2120c302, mmuset=0x10c03c7d, ucset=0x00c01c7c
+	crval	clear=0x2130c302, mmuset=0x10c03c7d, ucset=0x00c01c7c

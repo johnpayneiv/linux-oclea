@@ -129,6 +129,21 @@ static int uvcg_video_ep_queue(struct uvc_video *video, struct usb_request *req)
 {
 	int ret;
 
+#if 1
+	/*
+	 * FIXME: TODO Ambarella
+	 *
+	 * Don't queue the request to prevent kernel crashes.
+	 */
+	struct uvc_device *uvc =
+		container_of(video, struct uvc_device, video);
+
+	if (!video->ep->desc && uvc->state != UVC_STATE_STREAMING) {
+		printk(KERN_INFO "Not queue the request with ep being disabled.\n");
+		return -ESHUTDOWN;
+	}
+#endif
+
 	ret = usb_ep_queue(video->ep, req, GFP_ATOMIC);
 	if (ret < 0) {
 		uvcg_err(&video->uvc->func, "Failed to queue request (%d).\n",

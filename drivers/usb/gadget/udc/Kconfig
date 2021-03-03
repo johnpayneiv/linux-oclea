@@ -472,5 +472,17 @@ config USB_DUMMY_HCD
 
 # NOTE:  Please keep dummy_hcd LAST so that "real hardware" appears
 # first and will be selected by default.
+#
+
+config USB_AMBARELLA
+	tristate "Ambarella USB Device Controller"
+	depends on ARCH_AMBARELLA
+	help
+	   Many AMBARLLA processors (such as the A2/A5S/iONE/S2...) have a
+	   full/high speed USB Device Controller.
+
+	   Say "y" to link the driver statically, or "m" to build a
+	   dynamically linked module called "ambarella_udc" and force all
+	   gadget drivers to also be dynamically linked.
 
 endmenu

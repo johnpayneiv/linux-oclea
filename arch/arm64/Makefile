@@ -138,6 +138,13 @@ KBUILD_IMAGE	:= $(boot)/Image.gz
 all:	Image.gz
 
 
+# For mach-xxx/mach/{io.h|irqs.h}
+KBUILD_CPPFLAGS += -I$(srctree)/arch/arm/mach-ambarella/include
+
+ifeq ($(CONFIG_ARM64_MODULE_CMODEL_LARGE), y)
+KBUILD_CFLAGS_MODULE	+= -mcmodel=large
+endif
+
 Image: vmlinux
 	$(Q)$(MAKE) $(build)=$(boot) $(boot)/$@
 

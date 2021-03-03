@@ -1643,3 +1643,9 @@ static int __init arch_timer_acpi_init(struct acpi_table_header *table)
 }
 TIMER_ACPI_DECLARE(arch_timer, ACPI_SIG_GTDT, arch_timer_acpi_init);
 #endif
+
+#ifdef CONFIG_ARCH_AMBARELLA
+#ifdef CONFIG_CPU_FREQ
+#include "ambarella_timer_fixup.c"
+#endif
+#endif

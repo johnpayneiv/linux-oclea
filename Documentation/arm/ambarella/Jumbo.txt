@@ -1,0 +1,40 @@
+Ambarella Ethernet Jumbo Support
+================================
+
+# Hardware Limitation
+
+	`max_mtu = 3582`
+
+# Test
+
+~~~
+#!/bin/sh
+c=0
+maxmtu=3582
+mtu=1000
+server=10.0.0.120
+while true
+do
+	ifconfig eth0 down
+	if [ $mtu -gt $maxmtu ]
+	then
+		echo "## SET MTU as $maxmtu"
+		ifconfig eth0 mtu $maxmtu
+		mtu=0
+		let c++
+	else
+		echo "## SET MTU as $mtu"
+		ifconfig eth0 mtu $mtu
+	fi
+	ifconfig eth0 up
+	sleep 5
+	ping $server -c 1 -W 10
+	iperf3 -c $server
+	mtu=$(($mtu+1000))
+
+	if [ $c -gt 10 ]
+	then
+		exit
+	fi
+done
+~~~

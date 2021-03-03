@@ -35,6 +35,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_ADAU1701 if I2C
 	select SND_SOC_ADAU7002
 	select SND_SOC_ADS117X
+	select SND_SOC_AMBARELLA_DUMMY
 	select SND_SOC_AK4104 if SPI_MASTER
 	select SND_SOC_AK4118 if I2C
 	select SND_SOC_AK4458 if I2C
@@ -43,9 +44,16 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_AK4613 if I2C
 	select SND_SOC_AK4641 if I2C
 	select SND_SOC_AK4642 if I2C
+	select SND_SOC_AK4642_AMB if I2C
 	select SND_SOC_AK4671 if I2C
 	select SND_SOC_AK5386
+
 	select SND_SOC_AK5558 if I2C
+	select SND_SOC_AK4951_AMB if I2C
+	select SND_SOC_AK4954_AMB if I2C
+	select SND_SOC_WM8940_AMB if I2C
+	select SND_SOC_WM8974_AMB if I2C
+	select SND_SOC_TLV320AIC3X_AMB if I2C
 	select SND_SOC_ALC5623 if I2C
 	select SND_SOC_ALC5632 if I2C
 	select SND_SOC_BT_SCO
@@ -178,6 +186,7 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_STA529 if I2C
 	select SND_SOC_STAC9766 if SND_SOC_AC97_BUS
 	select SND_SOC_STI_SAS
+	select SND_SOC_TAS2505 if I2C
 	select SND_SOC_TAS2552 if I2C
 	select SND_SOC_TAS5086 if I2C
 	select SND_SOC_TAS571X if I2C
@@ -187,6 +196,8 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_TFA9879 if I2C
 	select SND_SOC_TLV320AIC23_I2C if I2C
 	select SND_SOC_TLV320AIC23_SPI if SPI_MASTER
+	select SND_SOC_TLV320ADC3xxx if I2C
+	select SND_SOC_TLV320AIC23 if I2C
 	select SND_SOC_TLV320AIC26 if SPI_MASTER
 	select SND_SOC_TLV320AIC31XX if I2C
 	select SND_SOC_TLV320AIC32X4_I2C if I2C && COMMON_CLK
@@ -257,6 +268,11 @@ config SND_SOC_ALL_CODECS
 	select SND_SOC_WM9705 if (SND_SOC_AC97_BUS || SND_SOC_AC97_BUS_NEW)
 	select SND_SOC_WM9712 if (SND_SOC_AC97_BUS || SND_SOC_AC97_BUS_NEW)
 	select SND_SOC_WM9713 if (SND_SOC_AC97_BUS || SND_SOC_AC97_BUS_NEW)
+	select SND_SOC_WM9705 if SND_SOC_AC97_BUS
+	select SND_SOC_WM9712 if SND_SOC_AC97_BUS
+	select SND_SOC_WM9713 if SND_SOC_AC97_BUS
+	select SND_SOC_ZL38063_AMB if SND_SOC_I2C_AND_SPI
+	
         help
           Normally ASoC codec drivers are only built if a machine driver which
           uses them is also built since they are only usable with a machine
@@ -409,6 +425,9 @@ config SND_SOC_ADAV803
 config SND_SOC_ADS117X
 	tristate
 
+config SND_SOC_AMBARELLA_DUMMY
+	tristate
+
 config SND_SOC_AK4104
 	tristate "AKM AK4104 CODEC"
 	depends on SPI_MASTER
@@ -440,6 +459,9 @@ config SND_SOC_AK4642
 	tristate "AKM AK4642 CODEC"
 	depends on I2C
 
+config SND_SOC_AK4642_AMB
+	tristate
+
 config SND_SOC_AK4671
 	tristate
 
@@ -450,6 +472,25 @@ config SND_SOC_AK5558
 	tristate "AKM AK5558 CODEC"
 	depends on I2C
 	select REGMAP_I2C
+
+config SND_SOC_AK4951_AMB
+	tristate
+
+config SND_SOC_AK4954_AMB
+	tristate
+
+config SND_SOC_AK4957
+	tristate
+
+config SND_SOC_WM8940_AMB
+	tristate
+
+config SND_SOC_WM8974_AMB
+	tristate
+
+config SND_SOC_TLV320AIC3X_AMB
+	tristate
+
 
 config SND_SOC_ALC5623
        tristate "Realtek ALC5623 CODEC"
@@ -1104,6 +1145,10 @@ config SND_SOC_STAC9766
 config SND_SOC_STI_SAS
 	tristate "codec Audio support for STI SAS codec"
 
+config SND_SOC_TAS2505
+	tristate "Texas Instruments TAS2505 Mono Audio amplifier"
+	depends on I2C
+
 config SND_SOC_TAS2552
 	tristate "Texas Instruments TAS2552 Mono Audio amplifier"
 	depends on I2C
@@ -1491,5 +1536,11 @@ config SND_SOC_NAU8825
 config SND_SOC_TPA6130A2
 	tristate "Texas Instruments TPA6130A2 headphone amplifier"
 	depends on I2C
+
+config SND_SOC_TLV320ADC3xxx
+	tristate
+
+config SND_SOC_ZL38063_AMB
+    tristate "Microsemi codec 38063"
 
 endmenu

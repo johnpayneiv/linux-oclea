@@ -1,0 +1,172 @@
+/*
+ * ak4957.h  --  audio driver for ak4957
+ *
+ * Copyright (C) 2013 Asahi Kasei Microdevices Corporation
+ *  Author                Date        Revision
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ *                      13/10/01	    1.0
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*
+ *
+ *  This program is free software; you can redistribute  it and/or modify it
+ *  under  the terms of  the GNU General  Public License as published by the
+ *  Free Software Foundation;  either version 2 of the  License, or (at your
+ *  option) any later version.
+ *
+ */
+
+#ifndef _AK4957_H
+#define _AK4957_H
+
+#define PLL_32BICK_MODE
+//#define PLL_64BICK_MODE
+
+#define AK4957_00_POWER_MANAGEMENT1			0x00
+#define AK4957_01_POWER_MANAGEMENT2			0x01
+#define AK4957_02_SIGNAL_SELECT1			0x02
+#define AK4957_03_SIGNAL_SELECT2			0x03
+#define AK4957_04_SIGNAL_SELECT3			0x04
+#define AK4957_05_MODE_CONTROL1				0x05
+#define AK4957_06_MODE_CONTROL2				0x06
+#define AK4957_07_MODE_CONTROL3				0x07
+#define AK4957_08_DIGITL_MIC				0x08
+#define AK4957_09_TIMER_SELECT				0x09
+#define AK4957_0A_ALC_TIMER_SELECT			0x0A
+#define AK4957_0B_ALC_MODE_CONTROL1			0x0B
+#define AK4957_0C_ALC_MODE_CONTROL2			0x0C
+#define AK4957_0D_ALC_MODE_CONTROL3			0x0D
+#define AK4957_0E_ALC_VOLUME				0x0E
+#define AK4957_0F_LCH_INPUT_VOLUME_CONTROL	0x0F
+#define AK4957_10_RCH_INPUT_VOLUME_CONTROL	0x10
+#define AK4957_11_LCH_OUTPUT_VOLUME_CONTROL	0x11
+#define AK4957_12_RCH_OUTPUT_VOLUME_CONTROL	0x12
+#define AK4957_13_DIGITAL_VOLUME2_CONTROL	0x13
+#define AK4957_14_RESERVED					0x14
+#define AK4957_15_ALC_INPUT_LEVEL			0x15
+#define AK4957_16_REF2_SETTING				0x16
+#define AK4957_17_LCH_MIC_GAIN_SETTING		0x17
+#define AK4957_18_RCH_MIC_GAIN_SETTING		0x18
+#define AK4957_19_BEEP_CONTROL				0x19
+#define AK4957_1A_VIDEO_CONTROL				0x1A
+#define AK4957_1B_HPF_FILTER_CONTROL		0x1B
+#define AK4957_1C_DIGITAL_FILTER_SELECT1	0x1C
+#define AK4957_1D_DIGITAL_FILTER_MODE		0x1D
+#define AK4957_1E_HPF2_COEFFICIENT0			0x1E
+#define AK4957_1F_HPF2_COEFFICIENT1			0x1F
+#define AK4957_20_HPF2_COEFFICIENT2			0x20
+#define AK4957_21_HPF2_COEFFICIENT3			0x21
+#define AK4957_22_LPF_COEFFICIENT0			0x22
+#define AK4957_23_LPF_COEFFICIENT1			0x23
+#define AK4957_24_LPF_COEFFICIENT2			0x24
+#define AK4957_25_LPF_COEFFICIENT3			0x25
+#define AK4957_26_FIL3_COEFFICIENT0			0x26
+#define AK4957_27_FIL3_COEFFICIENT1			0x27
+#define AK4957_28_FIL3_COEFFICIENT2			0x28
+#define AK4957_29_FIL3_COEFFICIENT3			0x29
+#define AK4957_2A_EQ0_EFFICIENT0			0x2A
+#define AK4957_2B_EQ0_EFFICIENT1			0x2B
+#define AK4957_2C_EQ0_EFFICIENT2			0x2C
+#define AK4957_2D_EQ0_EFFICIENT3			0x2D
+#define AK4957_2E_EQ0_EFFICIENT4			0x2E
+#define AK4957_2F_EQ0_EFFICIENT5			0x2F
+#define AK4957_30_DIGITAL_FILTER_SELECT2	0x30
+#define AK4957_31_EQ_COMMON_GAIN_SELECT		0x31
+#define AK4957_32_EQ_COMMON_GAIN_SETTING	0x32
+#define AK4957_33_E1_COEFFICIENT0			0x33
+#define AK4957_34_E1_COEFFICIENT1			0x34
+#define AK4957_35_E1_COEFFICIENT2			0x35
+#define AK4957_36_E1_COEFFICIENT3			0x36
+#define AK4957_37_E1_COEFFICIENT4			0x37
+#define AK4957_38_E1_COEFFICIENT5			0x38
+#define AK4957_39_E2_COEFFICIENT0			0x39
+#define AK4957_3A_E2_COEFFICIENT1			0x3A
+#define AK4957_3B_E2_COEFFICIENT2			0x3B
+#define AK4957_3C_E2_COEFFICIENT3			0x3C
+#define AK4957_3D_E2_COEFFICIENT4			0x3D
+#define AK4957_3E_E2_COEFFICIENT5			0x3E
+#define AK4957_3F_E3_COEFFICIENT0			0x3F
+#define AK4957_40_E3_COEFFICIENT1			0x40
+#define AK4957_41_E3_COEFFICIENT2			0x41
+#define AK4957_42_E3_COEFFICIENT3			0x42
+#define AK4957_43_E3_COEFFICIENT4			0x43
+#define AK4957_44_E3_COEFFICIENT5			0x44
+#define AK4957_45_E4_COEFFICIENT0			0x45
+#define AK4957_46_E4_COEFFICIENT1			0x46
+#define AK4957_47_E4_COEFFICIENT2			0x47
+#define AK4957_48_E4_COEFFICIENT3			0x48
+#define AK4957_49_E4_COEFFICIENT4			0x49
+#define AK4957_4A_E4_COEFFICIENT5			0x4A
+#define AK4957_4B_E5_COEFFICIENT0			0x4B
+#define AK4957_4C_E5_COEFFICIENT1			0x4C
+#define AK4957_4D_E5_COEFFICIENT2			0x4D
+#define AK4957_4E_E5_COEFFICIENT3			0x4E
+#define AK4957_4F_E5_COEFFICIENT4			0x4F
+#define AK4957_50_E5_COEFFICIENT5			0x50
+
+#define AK4957_MAX_REGISTERS	(AK4957_50_E5_COEFFICIENT5 + 1)
+
+/* Bitfield Definitions */
+
+/* AK4957_00_POWER_MANAGEMENT1 (0x00) Fields */
+#define AK4957_PMVCM				0x40
+
+/* AK4957_01_POWER_MANAGEMENT2 (0x01) Fields */
+#define AK4957_PMPLL				0x01
+#define AK4957_M_S					0x08
+
+/* AK4957_05_MODE_CONTROL1 (0x05) Fields */
+#define AK4957_DIF					0x03
+#define AK4957_DIF_24MSB_24LSB_MODE	(0 << 0)
+#define AK4957_DIF_24MSB_16LSB_MODE	(1 << 0)
+#define AK4957_DIF_24MSB_MODE		(2 << 0)
+#define AK4957_DIF_I2S_MODE			(3 << 0)
+#define AK4957_BCKO					0x08
+
+#define AK4957_PLL					0xF0
+#define AK4957_EXT_SLAVE			0
+#define AK4957_PLL_BICK32			(2 << 4)
+#define AK4957_PLL_BICK64			(3 << 4)
+#define AK4957_PLL_11_2896MHZ		(4 << 4)
+#define AK4957_PLL_12MHZ			(6 << 4)
+#define AK4957_PLL_24MHZ			(7 << 4)
+#define AK4957_PLL_13_5MHZ			(12 << 4)
+#define AK4957_PLL_27MHZ			(13 << 4)
+
+/* AK4957_06_MODE_CONTROL2 (0x06) Fields */
+#ifdef PLL_32BICK_MODE
+#define AK4957_FS				0x0F
+#define AK4957_FS_8KHZ			(0 << 0)
+#define AK4957_FS_11_025KHZ		(0 << 0)
+#define AK4957_FS_12KHZ			(0 << 0)
+#define AK4957_FS_16KHZ			(4 << 0)
+#define AK4957_FS_22_05KHZ		(4 << 0)
+#define AK4957_FS_24KHZ			(4 << 0)
+#define AK4957_FS_32KHZ			(8 << 0)
+#define AK4957_FS_44_1KHZ		(8 << 0)
+#define AK4957_FS_48KHZ			(8 << 0)
+#else
+#ifdef PLL_64BICK_MODE
+#define AK4957_FS				0x0F
+#define AK4957_FS_8KHZ			(0 << 0)
+#define AK4957_FS_11_025KHZ		(0 << 0)
+#define AK4957_FS_12KHZ			(0 << 0)
+#define AK4957_FS_16KHZ			(4 << 0)
+#define AK4957_FS_22_05KHZ		(4 << 0)
+#define AK4957_FS_24KHZ			(4 << 0)
+#define AK4957_FS_32KHZ			(8 << 0)
+#define AK4957_FS_44_1KHZ		(8 << 0)
+#define AK4957_FS_48KHZ			(8 << 0)
+#else
+#define AK4957_FS				0x0F
+#define AK4957_FS_8KHZ			(0 << 0)
+#define AK4957_FS_11_025KHZ		(0 << 0)
+#define AK4957_FS_12KHZ			(0 << 0)
+#define AK4957_FS_16KHZ			(0 << 0)
+#define AK4957_FS_22_05KHZ		(0 << 0)
+#define AK4957_FS_24KHZ			(0 << 0)
+#define AK4957_FS_32KHZ			(0 << 0)
+#define AK4957_FS_44_1KHZ		(0 << 0)
+#define AK4957_FS_48KHZ			(0 << 0)
+#endif
+#endif
+
+#endif

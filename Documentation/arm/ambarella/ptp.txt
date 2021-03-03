@@ -1,0 +1,48 @@
+Ambarella IEEE 1588 PTP clock
+=============================
+
+1. Overview
+-----------
+ IEEE 1588 Precision Clock Synchronization Protocol is supported on S5L, CV2, CV22, CV25
+ and the later chips. `linuxptp` is a recommended tool to test and configure the ptp on linux.
+
+2. Configration and Test
+------------------------
+
+ Linux Configration:
+  CONFIG_PTP_1588_CLOCK=y
+
+ Enter the following command as root on your HOST:
+  $ ptp4l -i enp0s3 -m
+
+ Slave only mode on your board side:
+  # ptp4l -i eth0 -s -m
+
+root@#/home/default/ptp4l -i eth0 -s -m
+ptp4l[124.718]: selected /dev/ptp0 as PTP clock
+[  125.157591] SIOCSHWTSTAMP: f.0 t.1 f.c
+ptp4l[124.755]: port 1: INITIALIZING to LISTENING on INIT_COMPLETE
+ptp4l[124.755]: port 0: INITIALIZING to LISTENING on INIT_COMPLETE
+ptp4l[126.126]: port 1: new foreign master 8cec4b.fffe.958140-1
+ptp4l[130.127]: selected best master clock 8cec4b.fffe.958140
+ptp4l[130.127]: port 1: LISTENING to UNCALIBRATED on RS_SLAVE
+ptp4l[131.136]: master offset -1545626055960412635 s0 freq   -4819 path delay      9262
+ptp4l[132.136]: master offset -1545626055960417360 s1 freq   -9543 path delay      9262
+ptp4l[133.136]: master offset       4850 s2 freq   -4693 path delay      9262
+ptp4l[133.145]: port 1: UNCALIBRATED to SLAVE on MASTER_CLOCK_SELECTED
+ptp4l[134.137]: master offset       6450 s2 freq   -1638 path delay      7637
+ptp4l[135.137]: master offset       3350 s2 freq   -2803 path delay      7637
+ptp4l[136.137]: master offset       1300 s2 freq   -3848 path delay      7687
+ptp4l[137.138]: master offset        325 s2 freq   -4433 path delay      7737
+ptp4l[138.138]: master offset        100 s2 freq   -4560 path delay      7687
+ptp4l[139.138]: master offset       -175 s2 freq   -4805 path delay      7687
+ptp4l[140.138]: master offset        -25 s2 freq   -4708 path delay      7637
+ptp4l[141.139]: master offset         31 s2 freq   -4659 path delay      7631
+ptp4l[142.139]: master offset       -187 s2 freq   -4868 path delay      7649
+ptp4l[143.139]: master offset        -62 s2 freq   -4799 path delay      7649
+ptp4l[144.139]: master offset          6 s2 freq   -4750 path delay      7631
+
+.. The Linux PTP Project website:
+	https://linuxptp.sourceforge.net
+.. Test and configure ptp use ptp4l:
+	https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/6/html/deployment_guide/ch-configuring_ptp_using_ptp4l#s2-Advantages_of_PTP

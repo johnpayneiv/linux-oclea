@@ -58,6 +58,9 @@ obj-$(CONFIG_MTD_NAND_TEGRA)		+= tegra_nand.o
 obj-$(CONFIG_MTD_NAND_STM32_FMC2)	+= stm32_fmc2_nand.o
 obj-$(CONFIG_MTD_NAND_MESON)		+= meson_nand.o
 
+obj-$(CONFIG_MTD_NAND_AMBARELLA)	+= ambarella_nand.o
+obj-$(CONFIG_MTD_COMBO_NAND_AMBARELLA)	+= ambarella_combo_nand.o
+
 nand-objs := nand_base.o nand_legacy.o nand_bbt.o nand_timings.o nand_ids.o
 nand-objs += nand_onfi.o
 nand-objs += nand_jedec.o

@@ -236,6 +236,7 @@ config ARM_PATCH_PHYS_VIRT
 	bool "Patch physical to virtual translations at runtime" if EMBEDDED
 	default y
 	depends on !XIP_KERNEL && MMU
+	depends on !ARCH_AMBARELLA
 	help
 	  Patch phys-to-virt and virt-to-phys translation functions at
 	  boot and module load time according to the position of the
@@ -339,6 +340,25 @@ config ARM_SINGLE_ARMV7M
 	select NO_IOPORT_MAP
 	select SPARSE_IRQ
 	select USE_OF
+
+config ARCH_AMBARELLA
+        bool "Ambarella"
+        depends on MMU
+        select NEED_MACH_GPIO_H
+        select NEED_MACH_IO_H
+        select NEED_MACH_MEMORY_H
+        select USE_OF
+        select ARCH_REQUIRE_GPIOLIB
+        select HAVE_CLK
+        select COMMON_CLK
+        select GENERIC_CLOCKEVENTS
+        select AMBARELLA_TIMER
+        select PINCTRL
+        select PINCTRL_AMB
+        select RATIONAL
+        select MFD_SYSCON
+        help
+          Support for Ambarella Media Processor.
 
 config ARCH_EBSA110
 	bool "EBSA-110"
@@ -609,6 +629,8 @@ config ARCH_VIRT
 source "arch/arm/mach-actions/Kconfig"
 
 source "arch/arm/mach-alpine/Kconfig"
+
+source "arch/arm/mach-ambarella/Kconfig"
 
 source "arch/arm/mach-artpec/Kconfig"
 

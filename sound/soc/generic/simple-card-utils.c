@@ -261,7 +261,12 @@ int asoc_simple_hw_params(struct snd_pcm_substream *substream,
 		mclk_fs = dai_props->mclk_fs;
 
 	if (mclk_fs) {
+#if 0
 		mclk = params_rate(params) * mclk_fs;
+#else /* Ambarella FIX at 12.288KHZ */
+		pr_warn("simple-card: Ambarella fix DAI clock at 12288000.\n");
+		mclk = 12288000;
+#endif
 
 		ret = asoc_simple_set_clk_rate(dai_props->codec_dai, mclk);
 		if (ret < 0)

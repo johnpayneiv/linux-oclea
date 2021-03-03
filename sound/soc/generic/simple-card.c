@@ -722,7 +722,9 @@ static int asoc_simple_remove(struct platform_device *pdev)
 static const struct of_device_id simple_of_match[] = {
 	{ .compatible = "simple-audio-card", },
 	{ .compatible = "simple-scu-audio-card",
-	  .data = (void *)DPCM_SELECTABLE },
+		.data = (void *)DPCM_SELECTABLE },
+	{ .compatible = "ambarella,audio-board", },
+
 	{},
 };
 MODULE_DEVICE_TABLE(of, simple_of_match);
