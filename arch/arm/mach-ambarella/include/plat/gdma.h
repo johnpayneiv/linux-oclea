@@ -92,5 +92,9 @@ struct gdma_param {
 /* GDMA_PIXELFORMAT_REG */
 #define GDMA_PIXELFORMAT_THROTTLE_DRAM	(1L << 11)
 
+int dma_memcpy(u8 *dest_addr, u8 *src_addr, u32 size);
+int dma_noncache_memcpy(u8 *dest_addr, u8 *src_addr, u32 size);
+int dma_pitch_memcpy(struct gdma_param *params);
+
 #endif
 

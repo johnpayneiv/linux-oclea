@@ -546,6 +546,11 @@ Required properties:
 - amb,usbphy: specifies the phandle to USB PHY.
 - amb,rct-regmap: phandle of RCT registers.
 - amb,scr-regmap: phandle of Scratchpad registers.
+- amb,usbp-ctrl-set: set usb phy spec setting, such as driver strength.
+- amb,ctrl-device: When set usb phy spec setting, set phy ctrl setting for device,
+				it must when set 'amb,usbp-ctrl-set'.
+- amb,ctrl-host:   When set usb phy spec setting, set phy ctrl setting for host,
+				it must when set 'amb,usbp-ctrl-set'.
 
 Optional properties:
 - amb,dma-addr-fix: should be specified only for S2.
@@ -756,7 +761,7 @@ Required properties:
 - interrupts: the interrupt for the SPI controller.
 - pinctrl-names: should contain only one value - "default".
 - pinctrl-0: pin control group to be used for this controller.
-- amb,clk-freq: specifies the PLL frequence in HZ.
+- clocks: specifies the PLL of this SPI controller.
 - amb,msb-first-only: HW only supports msb first tx/rx, for A5S/S2/S2E, please
   set this flag.
 - amb,ext_rx_dly: specifies round chip delay compensation mode, 0 is disabled
@@ -788,8 +793,7 @@ iv) Example
 		#size-cells = <0>;
 		reg = <0xe0020000 0x1000>;
 		interrupts = <35 0x4>;
-		amb,clk-name = "gclk_ssi_ahb";
-		amb,clk-freq = <54000000>;
+		clocks = <&gclk_ssi>;
 		amb,ext_rx_dly = <1>;
 		cs-gpios = <&gpio 37 0>, <&gpio 38 0>, <&gpio 23 0>;
 

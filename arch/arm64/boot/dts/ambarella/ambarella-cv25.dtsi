@@ -1006,6 +1006,7 @@
 			clock-names = "ptp_ref";
 			clocks= <&osc>;
 			amb,ext-ref-clk;
+			/* amb,pps-avail; */
 			/* amb,mdio-gpio; */
 			/* amb,tx-clk-invert; */
 		};
@@ -1027,7 +1028,7 @@
 			interrupts = <0 74 0x4>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&spi0_pins_a>;
-			amb,clk-freq = <54000000>;
+			clocks = <&gclk_ssi>;
 			/* amb,dma-used; */
 			dmas = <&dma0 1>, <&dma0 2>;
 			dma-names = "tx", "rx";
@@ -1041,7 +1042,7 @@
 			interrupts = <0 75 0x4>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&spi1_pins_b>;
-			amb,clk-freq = <54000000>;
+			clocks = <&gclk_ssi>;
 			/* amb,dma-used; */
 			dmas = <&dma0 3>, <&dma0 4>;
 			dma-names = "tx", "rx";
@@ -1056,7 +1057,7 @@
 			interrupts = <0 76 0x4>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&spi2_pins>;
-			amb,clk-freq = <54000000>;
+			clocks = <&gclk_ssi>;
 			/* amb,dma-used; */
 			dmas = <&dma1 17>, <&dma1 18>;
 			dma-names = "tx", "rx";
@@ -1071,7 +1072,7 @@
 			interrupts = <0 77 0x4>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&spi3_pins>;
-			amb,clk-freq = <54000000>;
+			clocks = <&gclk_ssi>;
 			/* amb,dma-used; */
 			dmas = <&dma1 19>, <&dma1 20>;
 			dma-names = "tx", "rx";
@@ -1212,7 +1213,11 @@
 
 		usbphy: usbphy@ed080050 {
 			compatible = "ambarella,usbphy";
-			reg = <0xed080050 0x4 0xe0022060 0x4 0xed0802c0 0x4>;
+			reg = <0xed080050 0x4>,
+				  <0xe0022060 0x4>,
+				  <0xed0802c0 0x4>,
+				  <0xed0802c4 0x4>,
+				  <0xed0802c8 0x4>;
 			amb,host-phy-num = <1>;
 			amb,ocp-polarity = <0>;
 		};
@@ -1716,6 +1721,8 @@
 			reg = <0xed08003c 4>;
 			clocks = <&gclk_core>;
 			clock-output-names = "gclk_ssi";
+			assigned-clocks = <&gclk_ssi>;
+			assigned-clock-rates = <54000000>;
 			amb,div-width = <24>;
 			amb,div-shift = <0>;
 		};

@@ -1327,6 +1327,7 @@ static int ambarella_sd_init_hw(struct ambarella_mmc_host *host)
 	}
 
 	ambarella_sd_reset_all(host);
+	host->bus_width = -1;
 
 	return 0;
 }

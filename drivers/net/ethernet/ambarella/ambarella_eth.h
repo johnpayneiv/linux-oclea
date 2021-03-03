@@ -133,6 +133,11 @@ struct ambeth_info {
 	bool				hwts_rx_en;
 	spinlock_t			ptp_spinlock;
 
+	bool				pps_avail;
+	u32				default_adden;
+	u32				sub_second_inc;
+	u32				systime_flags;
+
 	unsigned char __iomem		*regbase;
 	struct regmap			*reg_rct;
 	struct regmap			*reg_scr;
@@ -166,6 +171,19 @@ struct ambeth_info {
 #define MAC_PTP_STNSEC_UPDATE_OFFSET	0x0714
 #define MAC_PTP_ADDEND_OFFSET		0x0718
 
+#define MAC_PPS_TARGET_TIME_SEC		0x071C
+#define MAC_PPS_TARGET_TIME_NSEC	0x0720
+
+#define MAC_PPS_CONTROL			0x072C
+#define MAC_PPS_INTERVAL		0x0760
+#define MAC_PPS_WIDTH			0x0764
+
+#define PPSEN0				BIT(4)	/* enable flexiable output */
+#define TRGTBUSY0			BIT(31)
+#define PPSCMD(val)			(val)
+#define TRGTMODSEL(val)			((val) << 5)
+#define TRGTMODSEL_MASK			(3 << 5)
+
 /* MAC_PTP_CTRL_OFFSET bitmap */
 #define PTP_CTRL_TSENA		BIT(0)
 #define PTP_CTRL_TSCFUPDT	BIT(1)
@@ -183,6 +201,14 @@ struct ambeth_info {
 #define PTP_CTRL_TSMSTRENA	BIT(15)
 #define PTP_CTRL_SNAPTYPSEL	BIT(16)
 #define PTP_CTRL_TSENMACADDR	BIT(18)
+
+#define	PTP_SSIR_SSINC_MASK	0xff
+
+struct ambeth_mac_pps_cfg {
+	bool available;
+	struct timespec64 start;
+	struct timespec64 period;
+};
 
 int ambeth_set_hwtstamp(struct net_device *dev, struct ifreq *ifr);
 int ambeth_get_ts_info(struct net_device *dev, struct ethtool_ts_info *info);

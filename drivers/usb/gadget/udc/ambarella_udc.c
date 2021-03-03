@@ -375,21 +375,51 @@ static void init_setup_descriptor(struct ambarella_udc *udc)
 }
 
 
-static int init_null_pkt_desc(struct ambarella_udc *udc)
+static int ambarella_ep_dummy_init(struct ambarella_udc *udc)
 {
-	udc->dummy_desc = dma_pool_alloc(udc->desc_dma_pool, GFP_KERNEL,
-		&udc->dummy_desc_addr);
-	if(udc->dummy_desc == NULL){
-		printk(KERN_ERR "No memory to DMA\n");
-		return -ENOMEM;
+	int i;
+	struct ambarella_ep *ep;
+
+	for (i = 0; i < EP_NUM_MAX; i++) {
+		ep = &udc->ep[i];
+		ep->dummy_desc = dma_pool_alloc(udc->desc_dma_pool, GFP_KERNEL,
+				&ep->dummy_desc_addr);
+		if(ep->dummy_desc == NULL){
+			printk(KERN_ERR "No memory to dummy DMA\n");
+			return -ENOMEM;
+		}
+
+		ep->dummy_desc->data_ptr = ep->dummy_desc_addr | udc->dma_fix;
+		ep->dummy_desc->reserved = 0xffffffff;
+		ep->dummy_desc->next_desc_ptr = ep->dummy_desc_addr | udc->dma_fix;
+		ep->dummy_desc->status = USB_DMA_BUF_HOST_RDY | USB_DMA_LAST;
 	}
 
-	udc->dummy_desc->data_ptr = udc->dummy_desc_addr | udc->dma_fix;
-	udc->dummy_desc->reserved = 0xffffffff;
-	udc->dummy_desc->next_desc_ptr = udc->dummy_desc_addr | udc->dma_fix;
-	udc->dummy_desc->status = USB_DMA_BUF_HOST_RDY | USB_DMA_LAST;
-
 	return 0;
+}
+
+static void ambarella_ep_dummy_exit(struct ambarella_udc *udc)
+{
+	int i;
+	struct ambarella_ep *ep;
+
+	for (i = 0; i < EP_NUM_MAX; i++) {
+		ep = &udc->ep[i];
+		dma_pool_free(udc->desc_dma_pool, ep->dummy_desc, ep->dummy_desc_addr);
+	}
+}
+
+static void ambarella_ep_dummy_patch(struct ambarella_ep *ep, struct ambarella_data_desc *desc)
+{
+	struct ambarella_udc *udc = ep->udc;
+	if (desc->next_desc_ptr)
+		return;
+
+	if (ep->ep.desc && !IS_ISO_IN_EP(ep))
+		return;
+
+	ep->dummy_desc->status = USB_DMA_BUF_HOST_RDY | USB_DMA_LAST;
+	desc->next_desc_ptr = ep->dummy_desc_addr | udc->dma_fix;
 }
 
 static void init_ep0(struct ambarella_udc *udc)
@@ -528,6 +558,9 @@ static u32 ambarella_check_bna_error (struct ambarella_ep *ep, u32 ep_status)
 	/* Error: Buffer Not Available */
 	if (ep_status & USB_EP_BUF_NOT_AVAIL) {
 		printk(KERN_DEBUG "[USB]:BNA error in %s\n", ep->ep.name);
+
+		/* recover the system if BNA error occured. */
+		ep->dummy_desc->status = USB_DMA_BUF_HOST_RDY | USB_DMA_LAST;
 		writel(USB_EP_BUF_NOT_AVAIL, udc->base_reg + ep->ep_reg.sts_reg);
 		retval = 1;
 	}
@@ -583,6 +616,7 @@ static void ambarella_free_descriptor(struct ambarella_ep *ep,
 		data_desc->next_desc_ptr = 0;
 		data_desc->last_aux = 1;
 		next_data_desc = data_desc->next_desc_virt;
+		ambarella_ep_dummy_patch(ep, data_desc);
 		dma_pool_free(desc_dma_pool, data_desc, data_desc->cur_desc_addr);
 	}
 
@@ -682,6 +716,8 @@ static int ambarella_prepare_descriptor(struct ambarella_ep *ep,
 		data_desc->last_aux = 0;
 		data_desc->cur_desc_addr = desc_phys;
 
+		ambarella_ep_dummy_patch(ep, data_desc);
+
 		if(prev_data_desc){
 			prev_data_desc->next_desc_ptr = desc_phys | udc->dma_fix;
 			prev_data_desc->next_desc_virt = data_desc;
@@ -698,6 +734,7 @@ static int ambarella_prepare_descriptor(struct ambarella_ep *ep,
 	/* Patch last one */
 	data_desc->status |= USB_DMA_LAST;
 	data_desc->next_desc_ptr = 0;
+	ambarella_ep_dummy_patch(ep, data_desc);
 	data_desc->next_desc_virt = NULL;
 	data_desc->last_aux = 1;
 
@@ -739,6 +776,7 @@ static void ambarella_patch_iso_desc(struct ambarella_udc *udc,
 
 	current_frame = ambarella_udc_get_frame(&udc->gadget);
 	data_desc = req->data_desc;
+	frame_fix += (current_frame + ep->frame_offset);
 
 	/* according to USB2.0 spec, each microframe can send 3 packets at most */
 	for (i = 0; i < req->active_desc_count; i += j) {
@@ -748,7 +786,7 @@ static void ambarella_patch_iso_desc(struct ambarella_udc *udc,
 			max_packet_num = req->active_desc_count - i;
 
 		for (j = 0; j < max_packet_num; j++) {
-			data_desc->status |= ((current_frame + ep->frame_offset + frame_fix) << 16);
+			data_desc->status |= ((frame_fix & 0x7ff) << 16);
 			data_desc->status |= (max_packet_num << 14);
 			data_desc->status &= ~(0xf0000000);
 			data_desc->status |= USB_DMA_BUF_HOST_RDY | USB_DMA_LAST;
@@ -789,8 +827,8 @@ static void ambarella_set_rx_dma(struct ambarella_ep *ep,
 				udc->base_reg + ep_reg->dat_desc_ptr_reg);
 	} else {
 		/* receive zero-length-packet */
-		udc->dummy_desc->status = USB_DMA_BUF_HOST_RDY | USB_DMA_LAST;
-		writel(udc->dummy_desc_addr | udc->dma_fix,
+		ep->dummy_desc->status = USB_DMA_BUF_HOST_RDY | USB_DMA_LAST;
+		writel(ep->dummy_desc_addr | udc->dma_fix,
 				udc->base_reg + ep_reg->dat_desc_ptr_reg);
 	}
 
@@ -1226,9 +1264,9 @@ static void udc_epin_interrupt(struct ambarella_udc *udc, u32 ep_id)
 
 	if (ep_status & USB_EP_TRN_DMA_CMPL) {
 		/* write dummy desc to try to avoid BNA error */
-		ep->udc->dummy_desc->status =
+		ep->dummy_desc->status =
 			USB_DMA_BUF_HOST_RDY | USB_DMA_LAST;
-		writel(udc->dummy_desc_addr | udc->dma_fix,
+		writel(ep->dummy_desc_addr | udc->dma_fix,
 				udc->base_reg + ep->ep_reg.dat_desc_ptr_reg);
 
 		if(ep->halted || ep->dma_going == 0 || ep->cancel_transfer == 1
@@ -1490,6 +1528,7 @@ static int ambarella_udc_ep_enable(struct usb_ep *_ep,
 	struct ambarella_ep	*ep = to_ambarella_ep(_ep);
 	u32			max_packet, tmp, type, idx = 0;
 	unsigned long		flags;
+	int rval = 0;
 
 	/* Sanity check  */
 	if (!_ep || !desc || IS_EP0(ep)
@@ -1541,14 +1580,27 @@ static int ambarella_udc_ep_enable(struct usb_ep *_ep,
 		/* Double up the FIFO if isochronous mode */
 		if (IS_ISO_IN_EP(ep))
 			tmp *= 2;
+		else if (usb_endpoint_is_bulk_in(ep->ep.desc))
+			tmp *= 2;
+
+		udc->tx_fifosize -= tmp;
+		if (udc->tx_fifosize < 0) {
+			dev_err(udc->dev, "Tx FIFO overflow: request %d.\n", tmp);
+			rval = -ENOMEM;
+		} else {
+			dev_dbg(udc->dev, "Tx FIFO: %s use %d, reserved %d\n",
+					ep->ep.name, tmp, udc->tx_fifosize);
+		}
 
 		writel(tmp, udc->base_reg + ep->ep_reg.buf_sz_reg);
-	}
-	writel(max_packet, udc->base_reg + ep->ep_reg.max_pkt_sz_reg);
 
+	}
+
+	writel(max_packet, udc->base_reg + ep->ep_reg.max_pkt_sz_reg);
 	spin_unlock_irqrestore(&udc->lock, flags);
 
-	return 0;
+
+	return rval;
 }
 
 static int ambarella_udc_ep_disable(struct usb_ep *_ep)
@@ -1582,6 +1634,8 @@ static int ambarella_udc_ep_disable(struct usb_ep *_ep)
 
 	/* disable irqs */
 	setbitsl(udc->base_reg + USB_DEV_EP_INTR_MSK_REG, 1 << ep->id);
+
+	udc->tx_fifosize += readl(udc->base_reg + ep->ep_reg.buf_sz_reg);
 
 	spin_unlock_irqrestore(&ep->udc->lock, flags);
 
@@ -1752,8 +1806,9 @@ static int ambarella_udc_queue(struct usb_ep *_ep, struct usb_request *_req,
 				ep->dma_going = 0;
 				goto finish;
 			} else if (ep->id == CTRL_IN) {
-				//printk("the data length of ctrl-in is zero\n");
-				//BUG();
+				printk(KERN_INFO "%s: send zero-length packet\n", ep->ep.name);
+				ambarella_udc_done(ep, req, 0);
+				goto finish;
 			}
 		}
 
@@ -2232,6 +2287,7 @@ static int ambarella_udc_probe(struct platform_device *pdev)
 
 	udc->udc_is_enabled = 0;
 	udc->vbus_status = 0;
+	udc->tx_fifosize = 528;
 
 	ambarella_init_gadget(udc, pdev);
 	ambarella_udc_reinit(udc);
@@ -2256,10 +2312,10 @@ static int ambarella_udc_probe(struct platform_device *pdev)
 		goto err_out1;
 	}
 
-	retval = init_null_pkt_desc(udc);
-	if(retval){
+	retval = ambarella_ep_dummy_init(udc);
+	if (retval)
 		goto err_out2;
-	}
+
 
 	tasklet_init(&udc->disconnect_tasklet, ambarella_udc_disconnect_tasklet,
 			(unsigned long)udc);
@@ -2301,7 +2357,7 @@ static int ambarella_udc_probe(struct platform_device *pdev)
 err_out4:
 	remove_debugfs_files();
 err_out3:
-	dma_pool_free(udc->desc_dma_pool, udc->dummy_desc, udc->dummy_desc_addr);
+	ambarella_ep_dummy_exit(udc);
 err_out2:
 	dma_pool_free(udc->desc_dma_pool, udc->setup_buf, udc->setup_addr);
 err_out1:
@@ -2330,7 +2386,7 @@ static int ambarella_udc_remove(struct platform_device *pdev)
 
 	tasklet_kill(&udc->disconnect_tasklet);
 
-	dma_pool_free(udc->desc_dma_pool, udc->dummy_desc, udc->dummy_desc_addr);
+	ambarella_ep_dummy_exit(udc);
 	dma_pool_free(udc->desc_dma_pool, udc->setup_buf, udc->setup_addr);
 	dma_pool_destroy(udc->desc_dma_pool);
 

@@ -130,6 +130,9 @@ struct ambarella_ep {
 					dma_going : 1;
 
 	unsigned int frame_offset;  /* iso frame num offset */
+
+	dma_addr_t			dummy_desc_addr;
+	struct ambarella_data_desc	*dummy_desc;
 };
 
 struct ambarella_udc {
@@ -155,8 +158,6 @@ struct ambarella_udc {
 	u32				setup[2];
 	dma_addr_t			setup_addr;
 	struct ambarella_setup_desc	*setup_buf;
-	dma_addr_t			dummy_desc_addr;
-	struct ambarella_data_desc	*dummy_desc;
 
 	u16				cur_config;
 	u16				cur_intf;
@@ -173,6 +174,7 @@ struct ambarella_udc {
 	/* dma_fix is only used for S2 chip, due to its DMA engine fault */
 	u32				dma_fix;
 	struct tasklet_struct		disconnect_tasklet;
+	int				tx_fifosize;
 };
 
 /* Function Declaration  */

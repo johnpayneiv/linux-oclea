@@ -42,6 +42,7 @@
 #include <linux/mii.h>
 #include <linux/phy.h>
 #include <linux/ethtool.h>
+#include <linux/iopoll.h>
 #include <asm/dma.h>
 #include <plat/eth.h>
 #include <plat/rct.h>
@@ -83,37 +84,50 @@ static void ambhw_dump(struct ambeth_info *lp)
 			lp->tx.desc_tx[i].status, lp->tx.desc_tx[i].length,
 			lp->tx.desc_tx[i].buffer1, lp->tx.desc_tx[i].buffer2);
 	}
-	for (i = 0; i <= 21; i++) {
-		dev_dbg(&lp->ndev->dev, "GMAC[%d]: 0x%08x.\n", i,
-		readl(lp->regbase + ETH_MAC_CFG_OFFSET + (i << 2)));
+
+	/* Dump MAC register */
+	dev_info(&lp->ndev->dev, "MAC registers:\n");
+	for (i = 0; i < 0x58; i += 4)
+		dev_info(&lp->ndev->dev, "%04x:%08x\n", i, readl(lp->regbase +
+					ETH_MAC_CFG_OFFSET + i));
+
+	/* Dump DMA register */
+	dev_info(&lp->ndev->dev, "DMA registers:\n");
+	for (i = 0; i < 0x58; i += 4)
+		dev_info(&lp->ndev->dev, "%04x:%08x\n", i, readl(lp->regbase +
+					ETH_DMA_BUS_MODE_OFFSET + i));
+
+#if 0
+	/*
+	 * Try to reset DMA and MAC. If internal error occured, check the
+	 * EXT_OSC_CLK(RGMII) or REF_CLK (RMII) input clock.
+	 */
+	setbitsl(ETH_DMA_BUS_MODE_SWR, lp->regbase + ETH_DMA_BUS_MODE_OFFSET);
+
+	rval = readl_poll_timeout_atomic(lp->regbase + ETH_DMA_BUS_MODE_OFFSET,
+				value, !(value & ETH_DMA_BUS_MODE_SWR), 100, 10000);
+	if (rval) {
+		dev_info(&lp->ndev->dev, "MAC Internal Error: %08x\n", value);
+		BUG();
 	}
-	for (i = 0; i <= 54; i++) {
-		dev_dbg(&lp->ndev->dev, "GDMA[%d]: 0x%08x.\n", i,
-		readl(lp->regbase + ETH_DMA_BUS_MODE_OFFSET + (i << 2)));
-	}
+#endif
 }
 
 static inline int ambhw_dma_reset(struct ambeth_info *lp)
 {
-	int ret_val = 0;
-	u32 counter = 0, val;
 
-	val = readl(lp->regbase + ETH_DMA_BUS_MODE_OFFSET);
-	val |= ETH_DMA_BUS_MODE_SWR;
-	writel(val, lp->regbase + ETH_DMA_BUS_MODE_OFFSET);
-	do {
-		if (counter++ > 100) {
-			ret_val = -EIO;
-			break;
-		}
-		mdelay(1);
-		val = readl(lp->regbase + ETH_DMA_BUS_MODE_OFFSET);
-	} while (val & ETH_DMA_BUS_MODE_SWR);
+	u32 value;
+	int rval;
 
-	if (ret_val && netif_msg_drv(lp))
+	setbitsl(ETH_DMA_BUS_MODE_SWR, lp->regbase + ETH_DMA_BUS_MODE_OFFSET);
+	rval = readl_poll_timeout_atomic(lp->regbase + ETH_DMA_BUS_MODE_OFFSET,
+				value, !(value & ETH_DMA_BUS_MODE_SWR),
+				100, 10000);
+
+	if (rval && netif_msg_drv(lp))
 		dev_err(&lp->ndev->dev, "DMA Error: Check PHY.\n");
 
-	return ret_val;
+	return rval;
 }
 
 static inline void ambhw_dma_int_enable(struct ambeth_info *lp)
@@ -210,6 +224,12 @@ static inline void ambhw_dma_tx_restart(struct ambeth_info *lp, u32 entry)
 static inline void ambhw_dma_tx_poll(struct ambeth_info *lp)
 {
 	writel(0x01, lp->regbase + ETH_DMA_TX_POLL_DMD_OFFSET);
+}
+
+static inline void ambhw_start_tx_rx(struct ambeth_info *priv)
+{
+	setbitsl(ETH_MAC_CFG_RE, priv->regbase + ETH_MAC_CFG_OFFSET);
+	setbitsl(ETH_MAC_CFG_TE, priv->regbase + ETH_MAC_CFG_OFFSET);
 }
 
 static inline void ambhw_stop_tx_rx(struct ambeth_info *lp)
@@ -390,17 +410,21 @@ static inline void ambhw_disable(struct ambeth_info *lp)
 static void ambhw_dump_buffer(const char *msg,
 	unsigned char *data, unsigned int length)
 {
-	unsigned int i;
 
-	if (msg)
-		printk("%s", msg);
-	for (i = 0; i < length; i++) {
-		if (i % 16 == 0) {
-			printk("\n%03X:", i);
-		}
-		printk(" %02x", data[i]);
-	}
-	printk("\n");
+	char *p, *q;
+	unsigned int i;
+	int dlen = length > 48 ? 48 : length;
+
+	q = p = kmalloc(strlen(msg) + dlen * 3 + 1, GFP_KERNEL);
+	sprintf(q, "%s:", msg);
+	q += (strlen(msg) + 1);
+
+	for (i = 0; i < dlen; i++, q+=3)
+		sprintf(q, "%02x:", data[i]);
+
+	printk("%s\n", p);
+
+	kfree(p);
 }
 
 /* ==========================================================================*/
@@ -442,6 +466,9 @@ static int ambahb_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
 
 	regmap_read(lp->reg_scr, AHBSP_GMII_DATA_OFFSET, &value);
 
+	dev_dbg(&lp->ndev->dev,
+			"R: id.%02x reg.%02x val.%02x\n", mii_id, regnum, value);
+
 	return value;
 }
 
@@ -450,6 +477,9 @@ static int ambahb_mdio_write(struct mii_bus *bus, int mii_id,
 {
 	struct ambeth_info *lp = bus->priv;
 	int regval;
+
+	dev_dbg(&lp->ndev->dev,
+			"W: id.%02x reg.%02x val.%02x\n", mii_id, regnum, value);
 
 	regval = ETH_MAC_GMII_ADDR_PA(mii_id) | ETH_MAC_GMII_ADDR_GR(regnum);
 	regval |= ((lp->ahb_mdio_clk_div - 1) << 2);
@@ -560,29 +590,43 @@ ambhw_mdio_write_exit:
 	return ret_val;
 }
 
-static int ambhw_mdio_reset(struct mii_bus *bus)
+static void ambeth_phy_init(struct ambeth_info *priv)
 {
-	struct ambeth_info *lp = bus->priv;
-	int ret_val = 0;
-
-	if (netif_msg_hw(lp)) {
-		dev_info(&lp->ndev->dev, "MII Info: Power gpio = %d, "
-			"Reset gpio = %d.\n", lp->pwr_gpio, lp->rst_gpio);
+	if (gpio_is_valid(priv->pwr_gpio)) {
+		gpio_direction_output(priv->pwr_gpio, !priv->pwr_gpio_active);
+		msleep(20);
+		gpio_direction_output(priv->pwr_gpio, priv->pwr_gpio_active);
+		msleep(20);
 	}
 
-	if (gpio_is_valid(lp->pwr_gpio))
-		gpio_set_value_cansleep(lp->pwr_gpio, !lp->pwr_gpio_active);
-	if (gpio_is_valid(lp->rst_gpio))
-		gpio_set_value_cansleep(lp->rst_gpio, lp->rst_gpio_active);
-	if (gpio_is_valid(lp->pwr_gpio))
-		gpio_set_value_cansleep(lp->pwr_gpio, lp->pwr_gpio_active);
-	if (gpio_is_valid(lp->rst_gpio))
-		gpio_set_value_cansleep(lp->rst_gpio, !lp->rst_gpio_active);
+	if (gpio_is_valid(priv->rst_gpio)) {
+		gpio_direction_output(priv->rst_gpio, priv->rst_gpio_active);
+		msleep(20);
+		gpio_direction_output(priv->rst_gpio, !priv->rst_gpio_active);
+		msleep(20);
+	}
+}
 
-	/* waiting for PHY working stable, this delay is a must */
-	msleep(50);
+static void ambeth_phy_deinit(struct ambeth_info *priv)
+{
 
-	return ret_val;
+	if (gpio_is_valid(priv->rst_gpio)) {
+		gpio_direction_output(priv->rst_gpio, priv->rst_gpio_active);
+		msleep(20);
+	}
+
+	if (gpio_is_valid(priv->pwr_gpio)) {
+		gpio_direction_output(priv->pwr_gpio, !priv->pwr_gpio_active);
+		msleep(20);
+	}
+
+}
+
+static int ambhw_mdio_reset(struct mii_bus *bus)
+{
+	ambeth_phy_init(bus->priv);
+
+	return 0;
 }
 
 /* ==========================================================================*/
@@ -1287,13 +1331,7 @@ static int ambeth_start_hw(struct net_device *ndev)
 
 	lp = (struct ambeth_info *)netdev_priv(ndev);
 
-	if (gpio_is_valid(lp->pwr_gpio))
-		gpio_set_value_cansleep(lp->pwr_gpio, lp->pwr_gpio_active);
-	if (gpio_is_valid(lp->rst_gpio)) {
-		gpio_set_value_cansleep(lp->rst_gpio, lp->rst_gpio_active);
-		msleep(200);
-		gpio_set_value_cansleep(lp->rst_gpio, !lp->rst_gpio_active);
-	}
+	ambeth_phy_init(lp);
 
 	spin_lock_irqsave(&lp->lock, flags);
 	ret_val = ambhw_enable(lp);
@@ -1394,10 +1432,7 @@ static void ambeth_stop_hw(struct net_device *ndev)
 		lp->rx.rng_rx = NULL;
 	}
 
-	if (gpio_is_valid(lp->pwr_gpio))
-		gpio_set_value_cansleep(lp->pwr_gpio, !lp->pwr_gpio_active);
-	if (gpio_is_valid(lp->rst_gpio))
-		gpio_set_value_cansleep(lp->rst_gpio, lp->rst_gpio_active);
+	ambeth_phy_deinit(lp);
 }
 
 static int ambeth_open(struct net_device *ndev)
@@ -1574,27 +1609,69 @@ drop:
 static int ambeth_change_mtu(struct net_device *dev, int new_mtu)
 {
 	struct ambeth_info *priv = netdev_priv(dev);
+	u32 bfsize;
 
 	if (new_mtu > 4096)
-		priv->bfsize = 8100;
+		bfsize = 8100;
 	else if (new_mtu > 2048)
-		priv->bfsize = 4096;
+		bfsize = 4096;
 	else if (new_mtu > DEFAULT_BFSIZE)
-		priv->bfsize = 2048;
+		bfsize = 2048;
 	else
-		priv->bfsize = DEFAULT_BFSIZE;
+		bfsize = DEFAULT_BFSIZE;
 
 	if (!netif_running(dev)) {
+		priv->bfsize = bfsize;
 		dev->mtu = new_mtu;
 		netdev_update_features(dev);
-		return 0;
+	} else {
+		unsigned long flags;
+
+		netif_trans_update(dev);	/* prevent tx timeout */
+		napi_disable(&priv->napi);
+		netif_tx_disable(dev);
+
+		disable_irq(dev->irq);
+		spin_lock_irqsave(&priv->lock, flags);
+		ambhw_disable(priv);
+
+		ambeth_tx_rngmng_del(priv);
+		ambeth_rx_rngmng_del(priv);
+
+		priv->bfsize = bfsize;
+		dev->mtu = new_mtu;
+		netdev_update_features(dev);
+
+		if (priv->bfsize == DEFAULT_BFSIZE)
+			setbitsl(ETH_DMA_OPMODE_RSF, priv->regbase + ETH_DMA_OPMODE_OFFSET);
+		else
+			clrbitsl(ETH_DMA_OPMODE_RSF, priv->regbase + ETH_DMA_OPMODE_OFFSET);
+
+		if (dev->mtu > 1500)
+			setbitsl(ETH_MAC_CFG_2K, priv->regbase + ETH_MAC_CFG_OFFSET);
+		else
+			clrbitsl(ETH_MAC_CFG_2K, priv->regbase + ETH_MAC_CFG_OFFSET);
+
+		if (dev->mtu > 2000)
+			setbitsl(ETH_MAC_CFG_JE, priv->regbase + ETH_MAC_CFG_OFFSET);
+		else
+			clrbitsl(ETH_MAC_CFG_JE, priv->regbase + ETH_MAC_CFG_OFFSET);
+
+		ambeth_rx_rngmng_init(priv);
+		ambeth_tx_rngmng_init(priv);
+
+		ambhw_set_dma_desc(priv);
+		ambhw_dma_rx_start(priv);
+		ambhw_dma_tx_start(priv);
+		ambhw_dma_int_enable(priv);
+		ambhw_start_tx_rx(priv);
+
+		spin_unlock_irqrestore(&priv->lock, flags);
+
+		enable_irq(dev->irq);
+		napi_enable(&priv->napi);
+		netif_wake_queue(dev);
 	}
-
-	ambeth_stop(dev);
-	dev->mtu = new_mtu;
-
-	netdev_update_features(dev);
-	ambeth_open(dev);
 
 	return 0;
 }
@@ -2099,14 +2176,14 @@ static int ambeth_set_dump(struct net_device *ndev, struct ethtool_dump *ed)
 
 static int ambeth_ethtools_get_regs_len(struct net_device *ndev)
 {
-	return sizeof(u32) * AMBETH_PHY_REG_SIZE;
+	return sizeof(u16) * AMBETH_PHY_REG_SIZE;
 }
 
 static void ambeth_ethtools_get_regs(struct net_device *ndev,
 		struct ethtool_regs *regs, void *rdata)
 {
-	u32 *data = (u32 *) rdata;
-	size_t len = sizeof(u32) * AMBETH_PHY_REG_SIZE;
+	u16 *data = (u16 *) rdata;
+	size_t len = sizeof(u16) * AMBETH_PHY_REG_SIZE;
 	struct ambeth_info *lp = netdev_priv(ndev);
 	struct phy_device *phydev = lp->phydev;
 	int i;
@@ -2258,29 +2335,24 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 		lp->rst_gpio = of_get_named_gpio_flags(phy_np, "rst-gpios", 0, &flags);
 		lp->rst_gpio_active = !!(flags & OF_GPIO_ACTIVE_LOW);
 
-		/* request gpio for PHY power control */
 		if (gpio_is_valid(lp->pwr_gpio)) {
 			ret_val = devm_gpio_request(dev, lp->pwr_gpio, "phy power");
 			if (ret_val < 0) {
 				dev_err(dev, "Failed to request pwr-gpios!\n");
 				return -EBUSY;
 			}
-			gpio_direction_output(lp->pwr_gpio, lp->pwr_gpio_active);
 		}
 
-		/* request gpio for PHY reset control */
 		if (gpio_is_valid(lp->rst_gpio)) {
 			ret_val = devm_gpio_request(dev, lp->rst_gpio, "phy reset");
 			if (ret_val < 0) {
 				dev_err(dev, "Failed to request rst-gpios!\n");
 				return -EBUSY;
 			}
-
-			gpio_direction_output(lp->rst_gpio, lp->rst_gpio_active);
-			msleep(10);
-			gpio_direction_output(lp->rst_gpio, !lp->rst_gpio_active);
-			msleep(50);
 		}
+
+		/* request gpio for PHY power control */
+		ambeth_phy_init(lp);
 	}
 
 	ret_val = of_property_read_u32(np, "amb,fixed-speed", &lp->fixed_speed);
@@ -2552,11 +2624,6 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 
 	ambhw_disable(lp);
 
-	if (gpio_is_valid(lp->pwr_gpio))
-		gpio_set_value_cansleep(lp->pwr_gpio, !lp->pwr_gpio_active);
-	if (gpio_is_valid(lp->rst_gpio))
-		gpio_set_value_cansleep(lp->rst_gpio, lp->rst_gpio_active);
-
         ndev->ethtool_ops = &ambeth_ethtool_ops;
 
 	/* In theory the MAC hardware can support frame size which can up to 9018,
@@ -2628,11 +2695,7 @@ static int ambeth_drv_suspend(struct platform_device *pdev, pm_message_t state)
 	ambhw_disable(lp);
 	spin_unlock_irqrestore(&lp->lock, flags);
 
-	if (gpio_is_valid(lp->pwr_gpio))
-		gpio_set_value_cansleep(lp->pwr_gpio, !lp->pwr_gpio_active);
-	if (gpio_is_valid(lp->rst_gpio))
-		gpio_set_value_cansleep(lp->rst_gpio, lp->rst_gpio_active);
-
+	ambeth_phy_deinit(lp);
 ambeth_drv_suspend_exit:
 	dev_dbg(&pdev->dev, "%s exit with %d @ %d\n",
 		__func__, ret_val, state.event);
@@ -2675,16 +2738,7 @@ static int ambeth_drv_resume(struct platform_device *pdev)
 	else
 		regmap_update_bits(lp->reg_scr, AHBSP_CTL_OFFSET, 1<<31, 0<<31);
 
-	if (gpio_is_valid(lp->pwr_gpio)) {
-		gpio_direction_output(lp->pwr_gpio, lp->pwr_gpio_active);
-		msleep(10);
-	}
-	if (gpio_is_valid(lp->rst_gpio)) {
-		gpio_direction_output(lp->rst_gpio, lp->rst_gpio_active);
-		msleep(10);
-		gpio_direction_output(lp->rst_gpio, !lp->rst_gpio_active);
-		msleep(10);
-	}
+	ambeth_phy_init(lp);
 
 	spin_lock_irqsave(&lp->lock, flags);
 	ret_val = ambhw_enable(lp);

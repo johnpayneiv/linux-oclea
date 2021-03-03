@@ -146,6 +146,13 @@ static inline void dai_tx_fifo_rst(struct amb_i2s_priv *priv_data)
 	u32 val;
 	struct ambarella_i2s_interface *i2s_intf = &priv_data->i2s_intf;
 
+	do {
+		val = readl_relaxed(priv_data->regbase + I2S_TX_STATUS_OFFSET);
+		val &= I2S_TX_IDLE_FLAG_BIT;
+		if (!val)
+			msleep(1);
+	} while (!val);
+
 	val = readl_relaxed(priv_data->regbase + I2S_INIT_OFFSET);
 	val |= I2S_TX_FIFO_RESET_BIT;
 	writel_relaxed(val, priv_data->regbase + I2S_INIT_OFFSET);
@@ -168,23 +175,19 @@ static inline void dai_rx_fifo_rst(struct amb_i2s_priv *priv_data)
 {
 	u32 val;
 
+	do {
+		val = readl_relaxed(priv_data->regbase + I2S_RX_STATUS_OFFSET);
+		val &= I2S_RX_IDLE_FLAG_BIT;
+		if (!val) {
+			msleep(1);
+		}
+	} while (!val);
+
 	if(!capture_enabled)
 		return;
 
 	val = readl_relaxed(priv_data->regbase + I2S_INIT_OFFSET);
 	val |= I2S_RX_FIFO_RESET_BIT;
-	writel_relaxed(val, priv_data->regbase + I2S_INIT_OFFSET);
-}
-
-static inline void dai_fifo_rst(struct amb_i2s_priv *priv_data)
-{
-	u32 val;
-
-	if(!capture_enabled)
-		return;
-
-	val = readl_relaxed(priv_data->regbase + I2S_INIT_OFFSET);
-	val |= I2S_FIFO_RESET_BIT;
 	writel_relaxed(val, priv_data->regbase + I2S_INIT_OFFSET);
 }
 
@@ -239,12 +242,17 @@ static int ambarella_i2s_hw_params(struct snd_pcm_substream *substream,
 		return 0;
 
 	/* Disable tx/rx before initializing */
-	dai_tx_disable(priv_data);
-	dai_rx_disable(priv_data);
+	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+		dai_tx_disable(priv_data);
+	else
+		dai_rx_disable(priv_data);
 
 	i2s_intf->sfreq = params_rate(params);
 	i2s_intf->channels = params_channels(params);
-	writel_relaxed(i2s_intf->channels / 2 - 1,
+	if (i2s_intf->mode == I2S_DSP_MODE)
+		writel_relaxed(0, priv_data->regbase + I2S_CHANNEL_SELECT_OFFSET);
+	else
+		writel_relaxed(i2s_intf->channels / 2 - 1,
 			priv_data->regbase + I2S_CHANNEL_SELECT_OFFSET);
 
 	/* Set format */
@@ -322,9 +330,6 @@ static int ambarella_i2s_hw_params(struct snd_pcm_substream *substream,
 	writel_relaxed(i2s_intf->slots, priv_data->regbase + I2S_SLOT_OFFSET);
 	writel_relaxed(i2s_intf->multi24, priv_data->regbase + I2S_24BITMUX_MODE_OFFSET);
 
-	if ((i2s_intf->mode == I2S_I2S_MODE) && priv_data->ws_set_support)
-		writel_relaxed(I2S_WS_EN, priv_data->regbase + I2S_WS_OFFSET);
-
 	/* Set clock */
 	clk_set_rate(priv_data->mclk, i2s_intf->mclk);
 
@@ -350,10 +355,8 @@ static int ambarella_i2s_hw_params(struct snd_pcm_substream *substream,
 	writel_relaxed(clock_reg, priv_data->regbase + I2S_CLOCK_OFFSET);
 	mutex_unlock(&clock_reg_mutex);
 
-	dai_rx_enable(priv_data);
-	dai_tx_enable(priv_data);
-
-	msleep(1);
+	if ((i2s_intf->mode == I2S_I2S_MODE) && priv_data->ws_set_support)
+		writel_relaxed(I2S_WS_EN, priv_data->regbase + I2S_WS_OFFSET);
 
 	/* Notify HDMI that the audio interface is changed */
 	ambarella_audio_notify_transition(AUDIO_NOTIFY_SETHWPARAMS, i2s_intf);
@@ -361,8 +364,6 @@ static int ambarella_i2s_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 
 hw_params_exit:
-	dai_rx_enable(priv_data);
-	dai_tx_enable(priv_data);
 	return -EINVAL;
 }
 
@@ -379,6 +380,12 @@ static int ambarella_i2s_trigger(struct snd_pcm_substream *substream, int cmd,
 			dai_tx_enable(priv_data);
 		else
 			dai_rx_enable(priv_data);
+		break;
+	case SNDRV_PCM_TRIGGER_STOP:
+		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+			dai_tx_disable(priv_data);
+		else
+			dai_rx_disable(priv_data);
 		break;
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK){
@@ -444,7 +451,8 @@ static int ambarella_i2s_set_sysclk(struct snd_soc_dai *cpu_dai,
 {
 	struct amb_i2s_priv *priv_data = snd_soc_dai_get_drvdata(cpu_dai);
 
-	if (clk_id != 0) { /* AMBARELLA_CLKSRC_ONCHIP */
+	if (clk_id != 0) {
+		/* AMBARELLA_CLKSRC_ONCHIP */
 		printk("clk source (%d) is not supported yet\n", clk_id);
 		return -EINVAL;
 	}
@@ -551,14 +559,6 @@ static int ambarella_i2s_dai_probe(struct snd_soc_dai *dai)
 	i2s_intf->word_pos = 0;
 	i2s_intf->slots = 0;
 	i2s_intf->channels = 2;
-
-	/* reset fifo */
-	dai_tx_enable(priv_data);
-	dai_rx_enable(priv_data);
-	dai_fifo_rst(priv_data);
-
-	if(!capture_enabled)
-		dai_tx_fifo_rst(priv_data);
 
 	/* Notify HDMI that the audio interface is initialized */
 	ambarella_audio_notify_transition(AUDIO_NOTIFY_INIT, &priv_data->i2s_intf);
