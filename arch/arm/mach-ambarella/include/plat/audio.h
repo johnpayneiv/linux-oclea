@@ -32,15 +32,19 @@
 #define I2S_OFFSET			0x1A000
 #elif (CHIP_REV == CV1)
 #define I2S_OFFSET			0xD000
+#elif (CHIP_REV == CV5)
+#define I2S_OFFSET			0x1C000
 #else
 #define I2S_OFFSET			0x1D000
 #endif
 #define I2S_BASE			(AHB_BASE + I2S_OFFSET)
-#define I2S_BASE_PHYS 			(AHB_PHYS_BASE + I2S_OFFSET)
 #define I2S_REG(x)			(I2S_BASE + (x))
-#define I2S_REG_PHYS(x)  		(I2S_BASE_PHYS + (x))
 
+#if (CHIP_REV == CV5)
+#define I2S1_OFFSET			0x1D000
+#else
 #define I2S1_OFFSET			0xD000
+#endif
 #define I2S1_BASE			(AHB_BASE + I2S1_OFFSET)
 #define I2S1_REG(x)			(I2S1_BASE + (x))
 
@@ -96,8 +100,8 @@
 #define I2S_GATEOFF_REG				I2S_REG(0x54)
 #define I2S_CHANNEL_SELECT_REG			I2S_REG(0x58)
 #define I2S_WS_REG				I2S_REG(0x5c)
-#define I2S_RX_DATA_DMA_REG			I2S_REG_PHYS(0x80)
-#define I2S_TX_LEFT_DATA_DMA_REG		I2S_REG_PHYS(0xc0)
+#define I2S_RX_DATA_DMA_REG			I2S_REG(0x80)
+#define I2S_TX_LEFT_DATA_DMA_REG		I2S_REG(0xc0)
 
 #define I2S_LEFT_JUSTIFIED_MODE			0x0
 #define I2S_RIGHT_JUSTIFIED_MODE		0x1

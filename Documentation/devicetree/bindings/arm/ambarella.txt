@@ -819,13 +819,30 @@ Required properties:
 - interrupts: the interrupt for the slave spi controller.
 - pinctrl-names: should contain only one value - "default".
 - pinctrl-0: pin control group to be used for this controller.
+- clocks: specifies the clock for the slave spi controller.
+- dmas: please see Documentation/devicetree/bindings/dma/dma.txt
+- dma-names: please see Documentation/devicetree/bindings/dma/dma.txt.
+
+Optional properties:
+- notify-gpio: specifies the GPIO used to notify SPI master that the slave device
+  is ready for transfer.
+  Please refer to Documentation/arm/ambarella/spi_slave.txt for details.
+- amb,dma-buf-size: specifies the buffer size for DMA, it also represents the max
+  transfer size per each SPI transfer, the default value is 2048 if this option
+  is not specified.
 
 ii) Example
 -----------
-	spi_slave@e0026000 {
+	spi_slave@e0010000 {
 		compatible = "ambarella,spi-slave";
-		reg = <0xe0026000 0x1000>;
-		interrupts = <38 0x4>;
+		reg = <0xe0010000 0x1000>;
+		interrupts = <0 80 0x4>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&spi_slave_pins_a>;
+		clocks = <&gclk_ssi2>;
+		dmas = <&dma1 7>, <&dma1 8>;
+		dma-names = "tx", "rx";
+		amb,dma-buf-size = <2048>;
 	};
 
 

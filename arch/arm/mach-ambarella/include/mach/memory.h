@@ -72,6 +72,26 @@
 #endif	/* CONFIG_VMSPLIT_3G */
 
 /* ==========================================================================*/
+
+/* Physical Address and Size */
+#define AHB_PHYS_BASE			(0xe0000000)
+#define APB_PHYS_BASE			(0xe8000000)
+#define AHB_SIZE			(0x01000000)
+#define APB_SIZE			(0x01000000)
+
+#define AXI_PHYS_BASE			(0xf0000000)
+#define AXI_SIZE			(0x00030000)
+
+#define DRAMC_PHYS_BASE			(0xdffe0000)
+#define DRAMC_SIZE			(0x00020000)
+
+#define DBGBUS_PHYS_BASE		(0xec000000)
+#define DBGBUS_SIZE			(0x00200000)
+
+#define DBGFMEM_PHYS_BASE		(0xee000000)
+#define DBGFMEM_SIZE			(0x01000000)
+
+/* ==========================================================================*/
 #ifdef CONFIG_ARM_PATCH_PHYS_VIRT
 #error "CONFIG_ARM_PATCH_PHYS_VIRT needs the physical memory base at a 16MB boundary"
 #endif

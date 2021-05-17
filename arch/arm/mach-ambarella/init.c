@@ -238,8 +238,8 @@ void ambarella_restart_machine(enum reboot_mode mode, const char *cmd)
 	local_irq_disable();
 	local_fiq_disable();
 	flush_cache_all();
-	amba_rct_writel(SOFT_OR_DLL_RESET_REG, 0x2);
-	amba_rct_writel(SOFT_OR_DLL_RESET_REG, 0x3);
+	writel(0x2, (void __iomem *)SOFT_OR_DLL_RESET_REG);
+	writel(0x3, (void __iomem *)SOFT_OR_DLL_RESET_REG);
 }
 
 /* ==========================================================================*/
@@ -367,6 +367,6 @@ EXPORT_SYMBOL(get_ambarella_apb_size);
 
 u32 ambarella_get_poc(void)
 {
-	return amba_rct_readl(SYS_CONFIG_REG);
+	return readl((void __iomem *)SYS_CONFIG_REG);
 }
 EXPORT_SYMBOL(ambarella_get_poc);

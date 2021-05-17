@@ -1085,6 +1085,8 @@ static void ambarella_ep_nuke(struct ambarella_ep *ep, int status)
  */
 static void udc_device_interrupt(struct ambarella_udc *udc, u32 int_value)
 {
+	u32 regval, connect;
+
 	/* case 1. Get set_config or set_interface request from host */
 	if (int_value & (USB_DEV_SET_CFG | USB_DEV_SET_INTF)) {
 		struct usb_ctrlrequest crq;
@@ -1132,6 +1134,9 @@ static void udc_device_interrupt(struct ambarella_udc *udc, u32 int_value)
 		if(ret < 0)
 			printk(KERN_ERR "set config failed. (%d)\n", ret);
 
+		udc->cur_intf = 0;
+		udc->cur_alt = 0;
+
 		/* told UDC the configuration is done, and to ack HOST
 		 * UDC has to ack the host quickly, or Host will think failed,
 		 * do don't add much debug message when receive SC/SI irq.*/
@@ -1164,14 +1169,22 @@ static void udc_device_interrupt(struct ambarella_udc *udc, u32 int_value)
 		udc->auto_ack_0_pkt = 0;
 		udc->remote_wakeup_en = 0;
 
+		regmap_read(udc->scr_reg, AHBSP_USB_SIDEBAND_OFFSET, &regval);
+		connect = !!(regval & (1 << 26));
+
 		udc->udc_is_enabled = 0;
 		ambarella_udc_enable(udc);
-
-		usb_gadget_set_state(&udc->gadget, USB_STATE_ATTACHED);
+		if (connect)  {
+			dev_info(udc->dev, "Connected.\n");
+			usb_gadget_set_state(&udc->gadget, USB_STATE_ATTACHED);
+		} else {
+			dev_info(udc->dev, "Disconnected.\n");
+			usb_gadget_set_state(&udc->gadget, USB_STATE_NOTATTACHED);
+		}
 		schedule_work(&udc->uevent_work);
 #if 0
 		/* enable suspend interrupt */
-		clrbitsl(udc->base_reg + USB_DEV_INTR_MSK_REG, UDC_INTR_MSK_US);
+		clrbitsl(udc->base_reg + USB_DEV_INTR_MSK_REG, USB_DEV_MSK_SUSP);
 #endif
 	}
 
@@ -1425,11 +1438,12 @@ static irqreturn_t ambarella_udc_irq(int irq, void *_dev)
 		ambarella_udc_set_pullup(udc, 0);
 	}
 
+
 	/* 1. check if device interrupt */
 	value = readl(udc->base_reg + USB_DEV_INTR_REG);
-	if(value) {
+	if (value) {
 
-		dprintk(DEBUG_NORMAL, "device int value = 0x%x\n", value);
+		//printk("device int value = 0x%x\n", value);
 
 		handled = 1;
 		udc_device_interrupt(udc, value);
@@ -1465,6 +1479,7 @@ static irqreturn_t ambarella_udc_irq(int irq, void *_dev)
 	return IRQ_RETVAL(handled);
 }
 
+#if 0
 static void ambarella_vbus_timer(struct timer_list *t)
 {
 	struct ambarella_udc *udc = from_timer(udc, t, vbus_timer);
@@ -1489,6 +1504,7 @@ static void ambarella_vbus_timer(struct timer_list *t)
 
 	mod_timer(&udc->vbus_timer, jiffies + VBUS_POLL_TIMEOUT);
 }
+#endif
 
 static void ambarella_stop_activity(struct ambarella_udc *udc)
 {
@@ -2328,8 +2344,10 @@ static int ambarella_udc_probe(struct platform_device *pdev)
 		goto err_out3;
 	}
 
+#if 0
 	timer_setup(&udc->vbus_timer, ambarella_vbus_timer, 0);
 	mod_timer(&udc->vbus_timer, jiffies + VBUS_POLL_TIMEOUT);
+#endif
 
 	udc->pre_state = USB_STATE_NOTATTACHED;
 	INIT_WORK(&udc->uevent_work, ambarella_uevent_work);
@@ -2379,7 +2397,9 @@ static int ambarella_udc_remove(struct platform_device *pdev)
 	if (udc->driver)
 		return -EBUSY;
 
+#if 0
 	del_timer_sync(&udc->vbus_timer);
+#endif
 
 	remove_proc_entry("udc", get_ambarella_proc_dir());
 	remove_debugfs_files();
@@ -2405,7 +2425,9 @@ static int ambarella_udc_suspend(struct platform_device *pdev, pm_message_t mess
 	udc->sys_suspended = 1;
 	disable_irq(udc->irq);
 
+#if 0
 	del_timer_sync(&udc->vbus_timer);
+#endif
 
 	spin_lock_irqsave(&udc->lock, flags);
 	ambarella_udc_set_pullup(udc, 0);
@@ -2442,8 +2464,10 @@ static int ambarella_udc_resume(struct platform_device *pdev)
 	ambarella_udc_set_pullup(udc, 1);
 	spin_unlock_irqrestore(&udc->lock, flags);
 
+#if 0
 	timer_setup(&udc->vbus_timer, ambarella_vbus_timer, 0);
 	mod_timer(&udc->vbus_timer, jiffies + VBUS_POLL_TIMEOUT);
+#endif
 
 	dev_dbg(&pdev->dev, "%s exit with %d\n", __func__, retval);
 

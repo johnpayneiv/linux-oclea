@@ -37,7 +37,6 @@
 #include <asm/suspend.h>
 #include <mach/hardware.h>
 #include <mach/init.h>
-#include <plat/drctl.h>
 #include <plat/rtc.h>
 #include <plat/rct.h>
 #include <plat/nand_legacy.h>
@@ -128,7 +127,7 @@ void ambarella_power_off(void)
 	mdelay(100);
 	ambarella_pm_gpio_output(hibernate_gpio_notify_mcu, 0);
 
-	amba_rct_setbitsl(ANA_PWR_REG, ANA_PWR_POWER_DOWN);
+	amba_setbitsl(ANA_PWR_REG, 0x20);
 }
 
 void ambarella_power_off_prepare(void)

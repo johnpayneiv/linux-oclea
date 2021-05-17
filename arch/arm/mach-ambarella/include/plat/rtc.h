@@ -30,7 +30,7 @@
 #if (CHIP_REV == S2L) || (CHIP_REV == S3) || (CHIP_REV == S3L) || \
 	(CHIP_REV == S5) || (CHIP_REV == S5L)
 #define RTC_OFFSET			0x15000
-#elif (CHIP_REV == CV2FS)
+#elif (CHIP_REV == CV2FS) || (CHIP_REV == CV5)
 #define RTC_OFFSET			0x2F000
 #else
 #define RTC_OFFSET			0x1000
@@ -40,7 +40,7 @@
 	(CHIP_REV == S5L) || (CHIP_REV == CV1) || (CHIP_REV == CV2)
 #define RTC_BASE			(APB_BASE + RTC_OFFSET)
 #else
-#define RTC_BASE			(AHB_SCRATCHPAD_BASE + RTC_OFFSET)
+#define RTC_BASE			(AHB_BASE + RTC_OFFSET)
 #endif
 #define RTC_REG(x)			(RTC_BASE + (x))
 

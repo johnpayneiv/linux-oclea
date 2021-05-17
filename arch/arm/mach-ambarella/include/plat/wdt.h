@@ -29,6 +29,8 @@
 /* ==========================================================================*/
 #if (CHIP_REV == CV2FS)
 #define WDOG_OFFSET			0xF000
+#elif (CHIP_REV == CV5)
+#define WDOG_OFFSET			0x12000
 #else
 #define WDOG_OFFSET			0x2000
 #endif

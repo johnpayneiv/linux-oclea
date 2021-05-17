@@ -7,11 +7,11 @@
  * published by the Free Software Foundation.
  */
 
-/include/ "skeleton.dtsi"
-
 / {
 	compatible = "ambarella,s3l";
 	interrupt-parent = <&intc>;
+	#address-cells = <1>;
+	#size-cells = <1>;
 
 	aliases {
 		serial0 = &uart0;
@@ -671,6 +671,10 @@
 			interrupts = <79 0x4>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&spi_slave_pins_a>;
+			clocks = <&gclk_ssi2>;
+			dmas = <&dma 6>, <&dma 7>;
+			dma-names = "tx", "rx";
+			amb,dma-buf-size = <2048>;
 			status = "disabled";
 		};
 

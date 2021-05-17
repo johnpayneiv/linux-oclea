@@ -30,7 +30,7 @@
 /* ==========================================================================*/
 #if (CHIP_REV == S3) || (CHIP_REV == S5)
 #define ADC_NUM_CHANNELS		5
-#elif (CHIP_REV == S2L) || (CHIP_REV == S3L) || (CHIP_REV == S5L)
+#elif (CHIP_REV == S2L) || (CHIP_REV == S3L) || (CHIP_REV == S5L) || (CHIP_REV == CV5)
 #define ADC_NUM_CHANNELS		4
 #elif (CHIP_REV == CV1) || (CHIP_REV == CV2) || (CHIP_REV == CV22)
 #define ADC_NUM_CHANNELS		3
@@ -205,6 +205,8 @@
 #define ADC_FIFO_DATA1_REG		ADC_REG(ADC_FIFO_DATA1_OFFSET)
 #define ADC_FIFO_DATA2_REG		ADC_REG(ADC_FIFO_DATA2_OFFSET)
 #define ADC_FIFO_DATA3_REG		ADC_REG(ADC_FIFO_DATA3_OFFSET)
+
+#define ADC_ID(x)			(x)
 
 #define ADC_SLOT_CTRL_X_OFFSET(n)	(ADC_SLOT_CTRL_0_OFFSET + (n) * 4)
 #define ADC_SLOT_CTRL_X_REG(n)		ADC_REG(ADC_SLOT_CTRL_X_OFFSET(n))

@@ -93,12 +93,12 @@ struct ambacan_priv {
 static const struct can_bittiming_const ambarella_bittiming_const = {
 	.name = DRIVER_NAME,
 	.tseg1_min = 1,
-	.tseg1_max = 16,
+	.tseg1_max = 64,
 	.tseg2_min = 1,
-	.tseg2_max = 8,
-	.sjw_max = 4,
+	.tseg2_max = 16,
+	.sjw_max = 16,
 	.brp_min = 1,
-	.brp_max = 16,
+	.brp_max = 256,
 	.brp_inc = 1,
 };
 
@@ -129,9 +129,9 @@ static int ambarella_can_set_bittiming(struct net_device *ndev)
 
 	netdev_dbg(ndev, "set bit timing brp=[0x%x] sjw=[0x%x] prop_seg=[0x%x] seg1=[0x%x] seg2=[0x%x] \n",
 				bt->brp, bt->sjw, bt->prop_seg, bt->phase_seg1, bt->phase_seg2);
-	cfg_tq = (((bt->brp - 1) & 0xFF) << 13 )|
-			(((bt->sjw - 1) & 0xF) << 9) |
-			(((bt->prop_seg + bt->phase_seg1 - 1) & 0x1F) << 4) |
+	cfg_tq = (((bt->brp - 1) & 0xFF) << 14 )|
+			(((bt->sjw - 1) & 0xF) << 10) |
+			(((bt->prop_seg + bt->phase_seg1 - 1) & 0x3F) << 4) |
 			((bt->phase_seg2 - 1) & 0xF);
 
 	netdev_dbg(ndev, "setting BITTIMING=0x%08x\n", cfg_tq);
@@ -140,7 +140,7 @@ static int ambarella_can_set_bittiming(struct net_device *ndev)
 		writel_relaxed(cfg_tq, priv->reg_base + CAN_TQ_FD_OFFSET);
 	else {
 		if (priv->can.ctrlmode & CAN_CTRLMODE_3_SAMPLES)
-			cfg_tq |= (1 << 30);
+			cfg_tq |= (1 << 31);
 		writel_relaxed(cfg_tq, priv->reg_base + CAN_TQ_OFFSET);
 	}
 

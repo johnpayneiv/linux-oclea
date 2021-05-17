@@ -866,6 +866,10 @@
 			interrupts = <0 79 0x4>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&spi_slave_pins_c>;
+			clocks = <&gclk_ssi2>;
+			dmas = <&dma 6>, <&dma 7>;
+			dma-names = "tx", "rx";
+			amb,dma-buf-size = <2048>;
 			status = "disabled";
 		};
 

@@ -146,7 +146,9 @@ struct ambarella_udc {
 
 	struct proc_dir_entry		*proc_file;
 	struct work_struct		uevent_work;
+#if 0
 	struct timer_list		vbus_timer;
+#endif
 	enum usb_device_state		pre_state;
 
 	struct usb_gadget		gadget;

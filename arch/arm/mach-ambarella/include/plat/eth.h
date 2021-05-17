@@ -27,7 +27,7 @@
 #include <plat/chip.h>
 
 /* ==========================================================================*/
-#if (CHIP_REV == CV2FS)
+#if (CHIP_REV == CV2FS) || (CHIP_REV == CV5)
 #define ETH_INSTANCES			2
 #else
 #define ETH_INSTANCES			1
@@ -35,8 +35,13 @@
 
 #define ETH0_OFFSET			0xE000
 #define ETH0_DMA_OFFSET			0xF000
+#if (CHIP_REV == CV2FS)
 #define ETH1_OFFSET			0x32000
 #define ETH1_DMA_OFFSET			0x33000
+#else
+#define ETH1_OFFSET			0x22000
+#define ETH1_DMA_OFFSET			0x23000
+#endif
 
 #define ETH0_BASE			(AHB_BASE + ETH0_OFFSET)
 #define ETH0_DMA_BASE			(AHB_BASE + ETH0_DMA_OFFSET)

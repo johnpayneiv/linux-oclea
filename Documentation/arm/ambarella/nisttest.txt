@@ -19,7 +19,7 @@ PS:NIST Statistical Test Suite and NIST user guide can be downloaded from
 
 II - Introduction
 -----------------
-RNG stands for Random Number Generator, and the output is used for ‘encryption key’ generation.
+RNG stands for Random Number Generator, and the output is used for "encryption key" generation.
 The linux driver provides /dev/hwrng character device through hw_random framework.To check if
 RNG output is random enough, this page provides the information about how to verify the randomness.
 It contains randomness verification, number generation and test result on different platform.

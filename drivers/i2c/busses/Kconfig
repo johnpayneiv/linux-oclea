@@ -384,7 +384,17 @@ config I2C_AMBARELLA
 	  I2C Bus master controller
 
 	  This driver can also be built as a module.  If so, the module
-	  will be called ambarella_i2c.
+	  will be called ambarella-i2c.
+
+config I2C_AMBARELLA_SLAVE
+	tristate "Ambarella Media Soc I2C Slave"
+	select I2C_SLAVE
+	help
+	  If you say yes to this option, support will be included for the
+	  Ambarella Media Soc I2C slave adapter.
+
+	  This driver can also be built as a module. If so, the module
+	  will be called i2c-ambarella-slave.
 
 config I2C_ASPEED
 	tristate "Aspeed I2C Controller"

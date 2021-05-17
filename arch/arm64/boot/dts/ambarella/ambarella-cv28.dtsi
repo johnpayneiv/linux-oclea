@@ -28,6 +28,7 @@
 		i2c1 = &i2c1;
 		i2c2 = &i2c2;
 		i2c3 = &i2c3;
+		i2c4 = &i2cs;
 		spi0 = &spi0;
 		spi1 = &spi1;
 		spi2 = &spi2;
@@ -237,6 +238,18 @@
 			pinctrl-0 = <&i2c3_pins>;
 			clock-frequency = <100000>;
 			amb,i2c-class = <0x81>;
+			status = "disabled";
+		};
+
+		i2cs: i2cs@e4007000 {
+			compatible = "ambarella,i2cs";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0xe4007000 0x1000>;
+			interrupts = <0 19 0x4>;
+			clocks = <&gclk_apb>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2cs0_pins_a>;
 			status = "disabled";
 		};
 
@@ -588,6 +601,26 @@
 			i2c3_pins: i2c3@0 {
 				reg = <0>;
 				amb,pinmux-ids = <0x2008 0x2009>;
+			};
+
+			i2cs0_pins_a: i2cs0@0 {
+				reg = <0>;
+				amb,pinmux-ids = <0x3008 0x3009>;
+			};
+
+			i2cs0_pins_b: i2cs0@1 {
+				reg = <1>;
+				amb,pinmux-ids = <0x403d 0x403e>;
+			};
+
+			i2cs0_pins_c: i2cs0@2 {
+				reg = <2>;
+				amb,pinmux-ids = <0x504f 0x5050>;
+			};
+
+			i2cs0_pins_d: i2cs0@3 {
+				reg = <3>;
+				amb,pinmux-ids = <0x105b 0x105c>;
 			};
 
 			can0_pins: can0@0 {
@@ -1076,6 +1109,10 @@
 			interrupts = <0 80 0x4>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&spi_slave_pins_a>;
+			clocks = <&gclk_ssi2>;
+			dmas = <&dma1 7>, <&dma1 8>;
+			dma-names = "tx", "rx";
+			amb,dma-buf-size = <2048>;
 			status = "disabled";
 		};
 

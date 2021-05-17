@@ -27,6 +27,7 @@
 #include <plat/chip.h>
 
 /* ==========================================================================*/
+
 #define PWM_INSTANCES			4
 
 #if (CHIP_REV == S2L) || (CHIP_REV == S3) || (CHIP_REV == S3L) || \
@@ -37,15 +38,6 @@
 #endif
 #define PWM1_OFFSET			0xC000
 #define PWM2_OFFSET			0xD000
-
-#if (CHIP_REV == S2L) || (CHIP_REV == S3) || (CHIP_REV == S3L) || \
-	(CHIP_REV == S5) || (CHIP_REV == S5L)
-#define STEPPER_OFFSET			0x4000
-#else
-#define STEPPER_OFFSET			0x2000
-#endif
-#define STEPPER_BASE			(APB_BASE + STEPPER_OFFSET)
-#define	PWM_ST_REG(x)			(STEPPER_BASE + (x))
 
 /* ==========================================================================*/
 #define PWM_CONTROL_OFFSET		0x00

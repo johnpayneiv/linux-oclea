@@ -1,9 +1,9 @@
 /*
- * arch/arm/plat-ambarella/include/plat/cortex.h
+ * arch/arm/plat-ambarella/include/mach/io.h
  *
  * Author: Anthony Ginger <hfjiang@ambarella.com>
  *
- * Copyright (C) 2004-2010, Ambarella, Inc.
+ * Copyright (C) 2004-2009, Ambarella, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,37 +21,31 @@
  *
  */
 
-#ifndef __PLAT_AMBARELLA_CORTEX_H
-#define __PLAT_AMBARELLA_CORTEX_H
+#ifndef __ASM_ARCH_IO_H
+#define __ASM_ARCH_IO_H
 
 /* ==========================================================================*/
-#define AMBARELLA_PA_SCU_BASE			(AXI_PHYS_BASE + 0x00000000)
-#define AMBARELLA_VA_SCU_BASE			(AXI_BASE + 0x00000000)
+#include <mach/hardware.h>
 
 /* ==========================================================================*/
-#define PROCESSOR_START_0			(0)
-#define PROCESSOR_START_1			(1)
-#define PROCESSOR_START_2			(2)
-#define PROCESSOR_START_3			(3)
+#define IO_SPACE_LIMIT		0xffffffff
 
-#define PROCESSOR_STATUS_0			(4)
-#define PROCESSOR_STATUS_1			(5)
-#define PROCESSOR_STATUS_2			(6)
-#define PROCESSOR_STATUS_3			(7)
+#define __io(a)			((void __iomem *)(a))
+#define __mem_pci(a)		(a)
 
-#define ICDISER0_MASK				(8)
-#define INTDIS_LOCKER				(9)
-#define INTDIS_STATUS				(10)
+/* ==========================================================================*/
 
-#define MACHINE_ID				(11)
-#define ATAG_DATA				(12)
-
-#define AMBARELLA_BST_HEAD_CACHE_SIZE		(32)
+#ifndef IOMEM
+#define IOMEM(x)	((void __force __iomem *)(x))
+#endif
 
 /* ==========================================================================*/
 #ifndef __ASSEMBLER__
 
-/* ==========================================================================*/
+#define amba_writel(r, v)	writel((v), (void __iomem *)(r))
+#define amba_readl(r)		readl((void __iomem *)(r))
+#define amba_setbitsl(p, mask)	amba_writel((p),(amba_readl(p) | (mask)))
+#define amba_clrbitsl(p, mask)	amba_writel((p),(amba_readl(p) & ~(mask)))
 
 #endif /* __ASSEMBLER__ */
 /* ==========================================================================*/

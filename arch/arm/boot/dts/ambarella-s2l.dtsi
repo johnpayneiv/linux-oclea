@@ -7,11 +7,11 @@
  * published by the Free Software Foundation.
  */
 
-/include/ "skeleton.dtsi"
-
 / {
 	compatible = "ambarella,s2l";
 	interrupt-parent = <&intc>;
+	#address-cells = <1>;
+	#size-cells = <1>;
 
 	aliases {
 		serial0 = &uart0;
