@@ -241,9 +241,10 @@ static u32 to_native_cmd(struct ambarella_nand_host *host, u32 cmd)
 
 static inline void ambarella_fio_rct_reset(struct ambarella_nand_host *host)
 {
-	regmap_write(host->reg_rct, FIO_RESET_OFFSET, FIO_RESET_FIO_RST);
+	/* reset FIO_RESET_OFFSET */
+	regmap_write(host->reg_rct, 0x74, 0x8);
 	msleep(1);
-	regmap_write(host->reg_rct, FIO_RESET_OFFSET, 0);
+	regmap_write(host->reg_rct, 0x74, 0);
 	msleep(1);
 }
 

@@ -54,7 +54,7 @@
 #define WIND_NS_FL_VOC_LPF_COFT0_OFFSET		0x6A8
 #define WIND_NS_FL_VOC_LPF_COFT10_OFFSET	0x6D0
 
-#if (CHIP_REV == S5) || (CHIP_REV == CV25) || (CHIP_REV == S6LM) || (CHIP_REV == CV28)
+#if (CHIP_REV == S5) || (CHIP_REV == CV25) || (CHIP_REV == S6LM) || (CHIP_REV == CV28) || (CHIP_REV == CV5)
 #define DMIC_I2S_SEL_MASK		(1 << 24)
 #elif (CHIP_REV == S5L)
 #define DMIC_I2S_SEL_MASK		(1 << 6)
@@ -62,7 +62,7 @@
 #error "Not supported!"
 #endif
 
-#if (CHIP_REV == CV25) || (CHIP_REV == S6LM) || (CHIP_REV == CV28)
+#if (CHIP_REV == CV25) || (CHIP_REV == S6LM) || (CHIP_REV == CV28) || (CHIP_REV == CV5)
 #define DMIC_I2S_SEL_OFFSET		(0x60)
 #elif (CHIP_REV == S5) || (CHIP_REV == S5L)
 #define DMIC_I2S_SEL_OFFSET		(0x0C)

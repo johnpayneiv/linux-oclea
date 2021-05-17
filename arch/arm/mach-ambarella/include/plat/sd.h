@@ -28,7 +28,8 @@
 
 /* ==========================================================================*/
 #if (CHIP_REV == S2L) || (CHIP_REV == S3) || (CHIP_REV == S5) || \
-	(CHIP_REV == S6LM) || (CHIP_REV == CV25) || (CHIP_REV == CV28)
+	(CHIP_REV == S6LM) || (CHIP_REV == CV25) || (CHIP_REV == CV28) || \
+	(CHIP_REV == CV5)
 #define SD_INSTANCES			3
 #else
 #define SD_INSTANCES			2
@@ -43,6 +44,10 @@
 #define SD0_OFFSET			0x2000
 #define SD1_OFFSET			0x1F000
 #define SD2_OFFSET			0x1F000	/* invalid */
+#elif (CHIP_REV == CV5)
+#define SD0_OFFSET			0x3000
+#define SD1_OFFSET			0x4000
+#define SD2_OFFSET			0x5000
 #else
 #define SD0_OFFSET			0x4000
 #define SD1_OFFSET			0x5000
@@ -54,10 +59,6 @@
 #define SD2_BASE			(AHB_BASE + SD2_OFFSET)
 #define SD_BASE(id)			((id == 0) ? SD0_BASE : \
 					 (id == 1) ? SD1_BASE : SD2_BASE)
-
-#define SD0_REG(x)			(SD0_BASE + (x))
-#define SD1_REG(x)			(SD1_BASE + (x))
-#define SD2_REG(x)			(SD2_BASE + (x))
 
 /* ==========================================================================*/
 #define SD_DMA_ADDR_OFFSET		0x000

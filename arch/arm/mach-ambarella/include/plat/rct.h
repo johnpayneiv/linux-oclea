@@ -53,19 +53,16 @@
 #define SOFT_RESET_MASK			0x1
 
 /* ==========================================================================*/
-#define FIO_RESET_OFFSET		0x74
-#define FIO_RESET_REG			RCT_REG(FIO_RESET_OFFSET)
-#define FIO_RESET_FIO_RST		0x00000008
-#define FIO_RESET_CF_RST		0x00000004
-#define FIO_RESET_XD_RST		0x00000002
-#define FIO_RESET_FLASH_RST		0x00000001
 
-/* ==========================================================================*/
-
-#define USBC_CTRL_OFFSET		0x2cc
-#define UDC_SOFT_RESET_OFFSET		USBC_CTRL_OFFSET
+#if (CHIP_REV == CV5)
+#define UDC_SOFT_RESET_OFFSET		0x12c
+#define UDC_SOFT_RESET_MASK		0x1
+#define UDC_SOFT_RESET_REG		SCRATCHPAD_REG(UDC_SOFT_RESET_OFFSET)
+#else
+#define UDC_SOFT_RESET_OFFSET		0x2cc
 #define UDC_SOFT_RESET_MASK		0x2
 #define UDC_SOFT_RESET_REG		RCT_REG(UDC_SOFT_RESET_OFFSET)
+#endif
 
 #define USBP0_SEL_OFFSET		0x2c0
 #define USBP0_SEL_REG			RCT_REG(USBP0_SEL_OFFSET)
@@ -78,7 +75,12 @@
 #define USB0_IDDIG0_MASK		0x00000000
 #define USB0_IS_HOST_MASK		0x00000001
 #endif
+
+#if (CHIP_REV == CV5)
+#define USBP0_FORCE_TO_DEVICE		0
+#else
 #define USBP0_FORCE_TO_DEVICE		1
+#endif
 
 /* ==========================================================================*/
 #define PLL_AUDIO_CTRL_OFFSET		0x54
@@ -98,7 +100,6 @@
 /* ==========================================================================*/
 #define ANA_PWR_OFFSET			0x50
 #define ANA_PWR_REG			RCT_REG(ANA_PWR_OFFSET)
-#define ANA_PWR_POWER_DOWN		0x0020
 
 #define SYS_CONFIG_OFFSET		0x34
 #define SYS_CONFIG_REG			RCT_REG(SYS_CONFIG_OFFSET)
@@ -115,11 +116,10 @@
 /* ==========================================================================*/
 #define CG_UART0_OFFSET			0x38
 #define CG_SSI_OFFSET			0x3C
-#define CG_MOTOR_OFFSET			0x40
 #define CG_IR_OFFSET			0x44
-#define CG_HOST_OFFSET			0x48
 #define CG_PWM_OFFSET			0x84
 #define CG_SSI2_OFFSET			0xEC
+#define CLK_REF_PWM_OFFSET		0x1c4
 #define CLK_REF_SSI_OFFSET		0x19c
 #define CG_SSI3_OFFSET			0x518
 #define CLK_REF_SSI3_OFFSET		0x51c
@@ -140,12 +140,11 @@
 
 #define CG_UART0_REG			RCT_REG(CG_UART0_OFFSET)
 #define CG_SSI_REG			RCT_REG(CG_SSI_OFFSET)
-#define CG_MOTOR_REG			RCT_REG(CG_MOTOR_OFFSET)
 #define CG_IR_REG			RCT_REG(CG_IR_OFFSET)
-#define CG_HOST_REG			RCT_REG(CG_HOST_OFFSET)
 #define CG_PWM_REG			RCT_REG(CG_PWM_OFFSET)
 #define CG_SSI2_REG			RCT_REG(CG_SSI2_OFFSET)
 #define CG_SSI3_REG			RCT_REG(CG_SSI3_OFFSET)
+#define CLK_REF_PWM_REG			RCT_REG(CLK_REF_PWM_OFFSET)
 #define CLK_REF_SSI_REG			RCT_REG(CLK_REF_SSI_OFFSET)
 #define CLK_REF_SSI3_REG		RCT_REG(CLK_REF_SSI3_OFFSET)
 #define CG_UART1_REG			RCT_REG(CG_UART1_OFFSET)
@@ -178,8 +177,16 @@
 #endif
 
 #define UART_CLK_SRC_SEL_OFFSET		0x1C8
+#if (CHIP_REV == S5L)
+#define UART1_CLK_SRC_SEL_OFFSET	0x760
+#else
 #define UART1_CLK_SRC_SEL_OFFSET	0x72c
+#endif
+#if (CHIP_REV == S5L)
+#define UART2_CLK_SRC_SEL_OFFSET	0x768
+#else
 #define UART2_CLK_SRC_SEL_OFFSET	0x730
+#endif
 #define UART3_CLK_SRC_SEL_OFFSET	0x734
 #define UART4_CLK_SRC_SEL_OFFSET	0x738
 #define UART5_CLK_SRC_SEL_OFFSET	0x73c
@@ -266,12 +273,21 @@
 /* ==========================================================================*/
 
 #define HDMI_CLOCK_CTRL_OFFSET          0x008
+#if (CHIP_REV == CV5)
+#define PLL_HDMI_CTRL_OFFSET		0x1A8
+#define PLL_HDMI_FRAC_OFFSET		0x1AC
+#define PLL_HDMI_CTRL3_OFFSET		0x1B0
+#define PLL_HDMI_CTRL2_OFFSET		0x1B4
+#define SCALER_HDMI_PRE_OFFSET		RCT_INVALID_OFFSET
+#define SCALER_HDMI_POST_OFFSET		RCT_INVALID_OFFSET
+#else
 #define PLL_HDMI_CTRL_OFFSET		0x164
 #define PLL_HDMI_CTRL2_OFFSET		0x150
 #define PLL_HDMI_CTRL3_OFFSET		0x154
 #define PLL_HDMI_FRAC_OFFSET		0x168
 #define SCALER_HDMI_PRE_OFFSET		0x170
 #define SCALER_HDMI_POST_OFFSET		0x16C
+#endif
 
 #define HDMI_CLOCK_CTRL_REG		RCT_REG(HDMI_CLOCK_CTRL_OFFSET)
 #define PLL_HDMI_CTRL_REG		RCT_REG(PLL_HDMI_CTRL_OFFSET)
@@ -360,36 +376,55 @@
 #define PLL_FEX_CTRL2_REG		RCT_REG(PLL_FEX_CTRL2_OFFSET)
 #define PLL_FEX_CTRL3_REG		RCT_REG(PLL_FEX_CTRL3_OFFSET)
 #endif
-/* ==========================================================================*/
-#if (CHIP_REV == S2L) || (CHIP_REV == S3) || (CHIP_REV == CV2FS)
-#define ENET_CLK_SRC_SEL_OFFSET		RCT_INVALID_OFFSET
-#elif (CHIP_REV == S3L) || (CHIP_REV == S5L)
-#define ENET_CLK_SRC_SEL_OFFSET		0x544
-#else
-#define ENET_CLK_SRC_SEL_OFFSET		0x6B8
-#endif
-#define ENET_CLK_SRC_SEL_REG		RCT_REG(ENET_CLK_SRC_SEL_OFFSET)
 
+/* ==========================================================================*/
 #define ENET_SEL			(1 << 0)
 #define ENET_PHY_INTF_SEL_RMII		(1 << 1)
 #define ENET_CLK_SRC_SEL		(1 << 2)
 
-#if (CHIP_REV == S6LM) || (CHIP_REV == CV2FS) || (CHIP_REV == CV28)
-#define RCT_ENET_CTRL_OFFSET		0x79C
-#else /* non-exist on chips before CV25 */
-#define RCT_ENET_CTRL_OFFSET		RCT_INVALID_OFFSET
-#endif
-#define RCT_ENET_CTRL_REG		RCT_REG(RCT_ENET_CTRL_OFFSET)
-
-#if (CHIP_REV == CV2FS)
-#define RCT_ENET_CLK_SRC_SEL_VAL	ENET_CLK_SRC_SEL
-#define RCT_ENET_CLK_SRC_SEL_OFFSET	RCT_ENET_CTRL_OFFSET
-#define RCT_ENET_CLK_SRC_SEL_REG	RCT_ENET_CTRL_REG
+#if (CHIP_REV == S2L) || (CHIP_REV == S3) || (CHIP_REV == S3L) || \
+	(CHIP_REV == S5) || (CHIP_REV == S5L) || (CHIP_REV == CV1) || \
+	(CHIP_REV == CV2) || (CHIP_REV == CV22) || (CHIP_REV == CV25)
+#define ENET_CTRL_OFFSET		RCT_INVALID_OFFSET
+#define ENET_CTRL_REG			RCT_REG(RCT_INVALID_OFFSET)
+#elif (CHIP_REV == S6LM) || (CHIP_REV == CV2FS) || (CHIP_REV == CV28)
+#define ENET_CTRL_OFFSET		0x79C
+#define ENET_CTRL_REG			RCT_REG(0x79C)
 #else
-#define RCT_ENET_CLK_SRC_SEL_VAL	(1 << 0)
-#define RCT_ENET_CLK_SRC_SEL_OFFSET	ENET_CLK_SRC_SEL_OFFSET
-#define RCT_ENET_CLK_SRC_SEL_REG	ENET_CLK_SRC_SEL_REG
+#define ENET_CTRL_OFFSET		0x10C
+#define ENET_CTRL_REG			SCRATCHPAD_REG(0x10C)
 #endif
+
+
+#if (CHIP_REV == S2L) || (CHIP_REV == S3)
+#define ENET_CLK_SRC_SEL_VAL		(1 << 0)
+#define ENET_CLK_SRC_SEL_OFFSET		RCT_INVALID_OFFSET
+#define ENET_CLK_SRC_SEL_REG		RCT_REG(RCT_INVALID_OFFSET)
+
+#elif (CHIP_REV == S3L) || (CHIP_REV == S5L)
+#define ENET_CLK_SRC_SEL_VAL		(1 << 0)
+#define ENET_CLK_SRC_SEL_OFFSET		0x544
+#define ENET_CLK_SRC_SEL_REG		RCT_REG(0x544)
+
+#elif (CHIP_REV == S5) || (CHIP_REV == CV1) || (CHIP_REV == CV2) || \
+	(CHIP_REV == CV22) || (CHIP_REV == CV25) || (CHIP_REV == CV28) || \
+	(CHIP_REV == S6LM)
+#define ENET_CLK_SRC_SEL_VAL		(1 << 0)
+#define ENET_CLK_SRC_SEL_OFFSET		0x6B8
+#define ENET_CLK_SRC_SEL_REG		RCT_REG(0x6B8)
+
+#elif (CHIP_REV == CV2FS)
+#define ENET_CLK_SRC_SEL_VAL		ENET_CLK_SRC_SEL
+#define ENET_CLK_SRC_SEL_OFFSET		0x79C
+#define ENET_CLK_SRC_SEL_REG		RCT_REG(0x79C)
+
+#else
+#define ENET_CLK_SRC_SEL_VAL		ENET_CLK_SRC_SEL
+#define ENET_CLK_SRC_SEL_OFFSET		0x10C
+#define ENET_CLK_SRC_SEL_REG		SCRATCHPAD_REG(0x10C)
+
+#endif
+/* ==========================================================================*/
 
 #define SCALER_GTX_POST_OFFSET		0x2A8
 #define ENET_GTXCLK_SRC_OFFSET		0x2B0
@@ -410,7 +445,7 @@
 /* ==========================================================================*/
 #define SCALER_SD0_OFFSET		0x00C
 #if (CHIP_REV == S2L) || (CHIP_REV == S3) || (CHIP_REV == S5) || (CHIP_REV == S6LM) || \
-	(CHIP_REV == CV25) || (CHIP_REV == CV2FS) || (CHIP_REV == CV28)
+	(CHIP_REV == CV25) || (CHIP_REV == CV2FS) || (CHIP_REV == CV28) || (CHIP_REV == CV5)
 #define SCALER_SD1_OFFSET		0x430
 #else
 #define SCALER_SD1_OFFSET		0x434
@@ -442,22 +477,35 @@
 #define SD_PHY_SBC_DEFAULT_VALUE	0xb881
 #define SD_PHY_MAX_DLL_VFINE		0x1f
 
+#if (CHIP_REV == S2L) || (CHIP_REV == S3) || (CHIP_REV == S3L)
 #define SD0_PHY_CTRL_0_OFFSET		0x4C0
 #define SD0_PHY_CTRL_1_OFFSET		0x4C4
+#define SD0_PHY_CTRL_2_OFFSET		0x4C0
 #define SD_PHY_OBSV_OFFSET		0x4f0
-#if (CHIP_REV == S2L) || (CHIP_REV == S3) || (CHIP_REV == S3L)
-#define SD0_PHY_CTRL_2_OFFSET		SD0_PHY_CTRL_0_OFFSET
 #elif (CHIP_REV == S5L)
+#define SD0_PHY_CTRL_0_OFFSET		0x4C0
+#define SD0_PHY_CTRL_1_OFFSET		0x4C4
 #define SD0_PHY_CTRL_2_OFFSET		0x6f0
-#else
+#define SD_PHY_OBSV_OFFSET		0x4f0
+#elif (CHIP_REV == S5) || (CHIP_REV == CV1) || (CHIP_REV == CV2) || \
+	(CHIP_REV == S6LM) || (CHIP_REV == CV22) || (CHIP_REV == CV25) || \
+	(CHIP_REV == CV28) || (CHIP_REV == CV2FS)
+#define SD0_PHY_CTRL_0_OFFSET		0x4C0
+#define SD0_PHY_CTRL_1_OFFSET		0x4C4
 #define SD0_PHY_CTRL_2_OFFSET		0x664
+#define SD_PHY_OBSV_OFFSET		0x4f0
+#else
+#define SD0_PHY_CTRL_0_OFFSET		RCT_INVALID_OFFSET
+#define SD0_PHY_CTRL_1_OFFSET		RCT_INVALID_OFFSET
+#define SD0_PHY_CTRL_2_OFFSET		RCT_INVALID_OFFSET
+#define SD_PHY_OBSV_OFFSET		RCT_INVALID_OFFSET
 #endif
 #define SD0_PHY_CTRL_0_REG		RCT_REG(SD0_PHY_CTRL_0_OFFSET)
 #define SD0_PHY_CTRL_1_REG		RCT_REG(SD0_PHY_CTRL_1_OFFSET)
 #define SD0_PHY_CTRL_2_REG		RCT_REG(SD0_PHY_CTRL_2_OFFSET)
 #define SD_PHY_OBSV_REG			RCT_REG(SD_PHY_OBSV_OFFSET)
 
-#if (CHIP_REV == S2L) || (CHIP_REV == S3) || (CHIP_REV == S5)
+#if (CHIP_REV == S2L) || (CHIP_REV == S3) || (CHIP_REV == S5) || (CHIP_REV == CV5)
 #define SD1_PHY_CTRL_0_OFFSET		RCT_INVALID_OFFSET
 #define SD1_PHY_CTRL_1_OFFSET		RCT_INVALID_OFFSET
 #define SD1_PHY_CTRL_2_OFFSET		RCT_INVALID_OFFSET
@@ -481,19 +529,32 @@
 #if (CHIP_REV == S3)
 #define SD2_PHY_CTRL_0_OFFSET		0x4C8
 #define SD2_PHY_CTRL_1_OFFSET		0x4CC
-#define SD2_PHY_CTRL_2_OFFSET		SD2_PHY_CTRL_0_OFFSET
+#define SD2_PHY_CTRL_2_OFFSET		0x4C8
+#define SD2_PHY_CTRL_0_REG		RCT_REG(SD2_PHY_CTRL_0_OFFSET)
+#define SD2_PHY_CTRL_1_REG		RCT_REG(SD2_PHY_CTRL_1_OFFSET)
+#define SD2_PHY_CTRL_2_REG		RCT_REG(SD2_PHY_CTRL_2_OFFSET)
 #elif (CHIP_REV == S5)
 #define SD2_PHY_CTRL_0_OFFSET		0x4C8
 #define SD2_PHY_CTRL_1_OFFSET		0x4CC
 #define SD2_PHY_CTRL_2_OFFSET		0x668
+#define SD2_PHY_CTRL_0_REG		RCT_REG(SD2_PHY_CTRL_0_OFFSET)
+#define SD2_PHY_CTRL_1_REG		RCT_REG(SD2_PHY_CTRL_1_OFFSET)
+#define SD2_PHY_CTRL_2_REG		RCT_REG(SD2_PHY_CTRL_2_OFFSET)
+#elif (CHIP_REV == CV5)
+#define SD2_PHY_CTRL_0_OFFSET		0x100
+#define SD2_PHY_CTRL_1_OFFSET		0x104
+#define SD2_PHY_CTRL_2_OFFSET		0x108
+#define SD2_PHY_CTRL_0_REG		SCRATCHPAD_REG(SD2_PHY_CTRL_0_OFFSET)
+#define SD2_PHY_CTRL_1_REG		SCRATCHPAD_REG(SD2_PHY_CTRL_1_OFFSET)
+#define SD2_PHY_CTRL_2_REG		SCRATCHPAD_REG(SD2_PHY_CTRL_2_OFFSET)
 #else
 #define SD2_PHY_CTRL_0_OFFSET		RCT_INVALID_OFFSET
 #define SD2_PHY_CTRL_1_OFFSET		RCT_INVALID_OFFSET
 #define SD2_PHY_CTRL_2_OFFSET		RCT_INVALID_OFFSET
-#endif
 #define SD2_PHY_CTRL_0_REG		RCT_REG(SD2_PHY_CTRL_0_OFFSET)
 #define SD2_PHY_CTRL_1_REG		RCT_REG(SD2_PHY_CTRL_1_OFFSET)
 #define SD2_PHY_CTRL_2_REG		RCT_REG(SD2_PHY_CTRL_2_OFFSET)
+#endif
 
 #define SD_PHY_CTRL_0_REG(id)		((id == 0) ? SD0_PHY_CTRL_0_REG : \
 					 (id == 1) ? SD1_PHY_CTRL_0_REG : SD2_PHY_CTRL_0_REG)
@@ -553,7 +614,6 @@
 /* ==========================================================================*/
 #define AHB_MISC_OFFSET			0x21C
 #define AHB_MISC_REG			RCT_REG(AHB_MISC_OFFSET)
-#define AHB_MISC_EN_REG			AHB_MISC_REG
 
 /* ==========================================================================*/
 #define VOUT_CLK_SEL_OFFSET		0x744
@@ -564,7 +624,6 @@
 #define VIN_CLK_SEL_REG			RCT_REG(VIN_CLK_SEL_OFFSET)
 
 /* ==========================================================================*/
-#define IOCTRL_GPIO_OFFSET		0x1F8
 #define IOCTRL_MISC1_OFFSET		0x1FC
 #define IOCTRL_MISC2_OFFSET		0x200
 #define IOCTRL_SMIOA_OFFSET		0x204
@@ -573,7 +632,6 @@
 #define IOCTRL_SMIOD_OFFSET		0x210
 #define IOCTRL_VD0_OFFSET		0x214
 #define IOCTRL_SENSOR_OFFSET		0x218
-#define IOCTRL_GPIO_REG			RCT_REG(IOCTRL_GPIO_OFFSET)
 #define IOCTRL_MISC1_REG		RCT_REG(IOCTRL_MISC1_OFFSET)
 #define IOCTRL_MISC2_REG		RCT_REG(IOCTRL_MISC2_OFFSET)
 #define IOCTRL_SMIOA_REG		RCT_REG(IOCTRL_SMIOA_OFFSET)
@@ -639,7 +697,7 @@
 #define RCT_TIMER2_CTRL_REG		RCT_REG(RCT_TIMER2_CTRL_OFFSET)
 
 /* ==========================================================================*/
-#if (CHIP_REV == CV22) || (CHIP_REV == CV2)
+#if (CHIP_REV == CV22) || (CHIP_REV == CV2) || (CHIP_REV == CV5)
 #define RCT_OTP_T2V_CALIB_OFFSET	0x770
 #else
 #define RCT_OTP_T2V_CALIB_OFFSET	RCT_INVALID_OFFSET
@@ -659,12 +717,19 @@
 
 /* ==========================================================================*/
 
-#if (CHIP_REV == S6LM) || (CHIP_REV == CV2FS) || (CHIP_REV == CV28)
+#if (CHIP_REV == S6LM) || (CHIP_REV == CV2FS) || (CHIP_REV == CV28) || (CHIP_REV == CV5)
 #define SCALER_SYS_CNT_POST_OFFSET	0x794
 #else
 #define SCALER_SYS_CNT_POST_OFFSET	RCT_INVALID_OFFSET
 #endif
 #define SCALER_SYS_CNT_POST_REG		RCT_REG(SCALER_SYS_CNT_POST_OFFSET)
+
+/* ==========================================================================*/
+
+#define CLUSTER_SOFT_RST		0x228
+#define DISABLE_CLOCKS			0x2D8
+#define RCT_CLUSTER_SOFT_RST_REG	RCT_REG(CLUSTER_SOFT_RST)
+#define RCT_DISABLE_CLOCKS_REG		RCT_REG(DISABLE_CLOCKS)
 
 /* ==========================================================================*/
 
@@ -674,6 +739,8 @@
 #define AHB_SCRATCHPAD_OFFSET		0x1B000
 #elif (CHIP_REV == CV1) || (CHIP_REV == CV2)
 #define AHB_SCRATCHPAD_OFFSET		0x1000
+#elif (CHIP_REV == CV5)
+#define AHB_SCRATCHPAD_OFFSET		0x24000
 #else
 #define AHB_SCRATCHPAD_OFFSET		0x22000
 #endif
@@ -699,7 +766,7 @@
 #define AHBSP_GMII_ADDR_OFFSET		0xA4
 #endif
 
-#if (CHIP_REV == CV2FS)
+#if (CHIP_REV == CV2FS) || (CHIP_REV == CV5)
 #define AHB_SP0_RAM_OFFSET		0x30000
 #define AHB_SP1_RAM_OFFSET		0x31000
 #else
@@ -712,16 +779,17 @@
 /* ==========================================================================*/
 
 #define	POC_ETH_IS_ENABLED		0x00000001
-#define	POC_USB0_IS_DEVICE		0x20000000
 
 #if (CHIP_REV == S2L) || (CHIP_REV == S3) || (CHIP_REV == S3L)
-#define	POC_GCLK_CORE_DIV2_MASK		0x00000000
+#define	POC_PERIPHERAL_CLK_MODE		0x00000000
 #elif (CHIP_REV == S5) || (CHIP_REV == CV1)
-#define	POC_GCLK_CORE_DIV2_MASK		0x00800000
+#define POC_PERIPHERAL_CLK_MODE		0x00800000
 #elif (CHIP_REV == S5L)
-#define	POC_GCLK_CORE_DIV2_MASK		0x00100000
+#define POC_PERIPHERAL_CLK_MODE		0x00100000
+#elif (CHIP_REV == CV2FS) || (CHIP_REV == CV5)
+#define POC_PERIPHERAL_CLK_MODE		0x04000000
 #else
-#define	POC_GCLK_CORE_DIV2_MASK		0x00000200
+#define POC_PERIPHERAL_CLK_MODE		0x00000200
 #endif
 
 #if (CHIP_REV == S5L)
@@ -737,8 +805,15 @@
 #define POC_BOOT_FROM_SPINOR		0x00000000
 #define POC_BOOT_FROM_NAND		0x00000010
 #define POC_BOOT_FROM_EMMC		0x00000020
-#define POC_BOOT_FROM_SPI		0x00000030
-#define POC_BOOT_FROM_HIF		0x00000040
+#define POC_BOOT_FROM_PCIE		0xFFFFFFFF /* not supported */
+#elif (CHIP_REV == CV5)
+#define POC_BOOT_FROM_MASK		0x00000030
+#define POC_BOOT_FROM_BYPASS		0x00000100
+#define POC_BOOT_FROM_USB		0x00000400
+#define POC_BOOT_FROM_SPINOR		0x00000000
+#define POC_BOOT_FROM_NAND		0x00000010
+#define POC_BOOT_FROM_EMMC		0x00000020
+#define POC_BOOT_FROM_PCIE		0x00000030
 #else
 #define POC_BOOT_FROM_MASK		0x00000030
 #define POC_BOOT_FROM_BYPASS		0x00000100
@@ -746,15 +821,16 @@
 #define POC_BOOT_FROM_SPINOR		0x00000000
 #define POC_BOOT_FROM_NAND		0x00000010
 #define POC_BOOT_FROM_EMMC		0x00000020
-#define POC_BOOT_FROM_SPI		0x00000030
-#define POC_BOOT_FROM_HIF		0xFFFFFFFF /* not supported */
+#define POC_BOOT_FROM_PCIE		0xFFFFFFFF /* not supported */
 #endif
 
+/* these definition are used by software */
 #define RCT_BOOT_FROM_BYPASS		0x80000000
 #define RCT_BOOT_FROM_USB		0x40000000
 #define RCT_BOOT_FROM_NAND		0x00000001
 #define RCT_BOOT_FROM_EMMC		0x00000002
 #define RCT_BOOT_FROM_SPINOR		0x00000004
+#define RCT_BOOT_FROM_PCIE		0x00000008
 #define RCT_BOOT_FROM_MASK		0x0000000f
 #define BOOT_MEDIA(m)			((m) & RCT_BOOT_FROM_MASK)
 #define BOOT_FROM(b)			(((b) & RCT_BOOT_FROM_USB) ? RCT_BOOT_FROM_USB : \
@@ -780,7 +856,7 @@
 #define SYS_CONFIG_NAND_READ_CONFIRM	0xffffffff /* not used */
 #define SYS_CONFIG_NAND_ECC_BCH_EN	0x00010000
 #define SYS_CONFIG_NAND_ECC_SPARE_2X	0x00008000
-#elif (CHIP_REV == CV2FS) || (CHIP_REV == CV28)
+#elif (CHIP_REV == CV2FS) || (CHIP_REV == CV28) || (CHIP_REV == CV5)
 #define SYS_CONFIG_NAND_SPINAND		0xffffffff /* not used, spinand only */
 #define SYS_CONFIG_NAND_SCKMODE		0x00040000
 #define SYS_CONFIG_NAND_4K_FIFO		0xffffffff /* not used */
@@ -830,7 +906,7 @@
 #define SYS_CONFIG_MMC_SDXC		0x00020000
 #define SYS_CONFIG_MMC_4BIT		0x00010000
 #define SYS_CONFIG_MMC_8BIT		0x00008000
-#elif (CHIP_REV == CV2FS) || (CHIP_REV == CV28)
+#elif (CHIP_REV == CV2FS) || (CHIP_REV == CV28) || (CHIP_REV == CV5)
 #define SYS_CONFIG_MMC_HS		0x00002000
 #define SYS_CONFIG_MMC_DDR		0x00000000 /* not supported */
 #define SYS_CONFIG_MMC_SDXC		0x00000000 /* not supported */
@@ -853,7 +929,7 @@
 #define RCT_BOOT_EMMC_SDXC		0x00000010
 
 /* ==========================================================================*/
-#if (CHIP_REV == CV28)
+#if (CHIP_REV == CV28) || (CHIP_REV == CV5)
 #define MIPI_DSI_CTRL0_OFFSET		0x00000584
 #define MIPI_DSI_CTRL1_OFFSET		0x00000588
 #define MIPI_DSI_CTRL2_OFFSET		0x0000058c
@@ -875,10 +951,6 @@
 
 /* ==========================================================================*/
 
-#define RCT_DLL0_OFFSET			0x90
-#define RCT_DLL0_REG			RCT_REG(RCT_DLL0_OFFSET)
-#define RCT_DLL_NEG_PUSH_LIMIT_OFFSET          0x644
-#define RCT_DLL_NEG_PUSH_LIMIT_REG	RCT_REG(RCT_DLL_NEG_PUSH_LIMIT_OFFSET)
 
 #endif /* __PLAT_AMBARELLA_RCT_H__ */
 

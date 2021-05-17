@@ -119,6 +119,8 @@
 #define UART_TFL_OFFSET			0x80
 #define UART_RFL_OFFSET			0x84
 #define UART_SRR_OFFSET			0x88
+#define UART_RTR_OFFSET			0xac
+#define UART_TTR_OFFSET			0xb0
 
 /* UART[x]_IE_REG */
 #define UART_IE_PTIME			0x80
@@ -146,6 +148,7 @@
 #define UART_FC_TX_2_IN_FIFO		0x10
 #define UART_FC_TX_QUATER_IN_FIFO	0x20
 #define UART_FC_TX_HALF_IN_FIFO		0x30
+#define UART_FC_DMA_SELECT		0x08
 #define UART_FC_XMITR			0x04
 #define UART_FC_RCVRR			0x02
 #define UART_FC_FIFOE			0x01

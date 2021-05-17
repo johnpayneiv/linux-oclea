@@ -177,9 +177,17 @@ struct nand_flash_dev nand_flash_ids[] = {
 		{ .id = {0xc2, 0x26, 0x03, 0x00, 0x00} },
 		SZ_2K, SZ_256, SZ_128K, 0, 3, 64},
 
+	{"MX35LF4GE4AD SPINAND 4Gb 3.3V 8-bit",
+		{ .id = {0xc2, 0x37, 0x03, 0x00, 0x00} },
+		SZ_4K, SZ_512, SZ_256K, 0, 3, 128},
+
 	{"DS35Q2GA SPINAND 2G 3.3V 8-bit",
 		{ .id = {0xe5, 0x72, 0x00, 0x00, 0x00} },
 		  SZ_2K, SZ_256, SZ_128K, 0, 2, 64},
+
+	{"DS35M4GM SPINAND 4Gb 1.8V 8-bit",
+		{ .id = {0xe5, 0xa4, 0x00, 0x00, 0x00} },
+		  SZ_2K, SZ_512, SZ_128K, 0, 2, 128},
 
 	{"MX30LF4G28AD 2G 3.3V 8-bit",
 		{ .id = {0xC2, 0xDC, 0x90, 0xA2, 0x57} },

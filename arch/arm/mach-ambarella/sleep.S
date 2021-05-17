@@ -25,11 +25,14 @@
 #include <linux/init.h>
 #include <asm/cache.h>
 #include <mach/hardware.h>
-#include <plat/drctl.h>
 #include <plat/rct.h>
 #include <plat/uart.h>
 
 #define REF_CLK_FREQ			24000000
+
+#define DRAM_DDRC_OFFSET  		0x0800
+#define DDRC_CTL_OFFSET			(0x00)
+#define DDRC_SELF_REF_OFFSET		(0x1C)
 
 	.text
 
@@ -54,25 +57,25 @@ ENTRY(ambarella_optimize_suspend)
 	/* delay 100ms: 0x249F00 is about 0x250000 */
 	mov	r3, #0x250000
 
-	mov	r4,	#RCT_BUS_BASE
+	mov	r4, #RCT_BUS_BASE
 	orr	r4, #RCT_OFFSET
-	orr	r4,	#RCT_TIMER_OFFSET
-	ldr	r5,	[r4]
+	orr	r4, #RCT_TIMER_OFFSET
+	ldr	r5, [r4]
 	add	r5, r5, r3
 rct_time_loop:
-	ldr	r6,	[r4]
+	ldr	r6, [r4]
 	cmp	r5, r6
 	bhi	rct_time_loop
 
 	b	self_refresh
 
 suspend_with_pwc:
-	mov	r0,	#RCT_BUS_BASE
+	mov	r0, #RCT_BUS_BASE
 	orr	r0, #RCT_OFFSET
 	orr	r0, #ANA_PWR_OFFSET
 
 	/* Generate the PD signal */
-	mov	r1, #ANA_PWR_POWER_DOWN
+	mov	r1, #0x20
 	str	r1, [r0]
 
 self_refresh:

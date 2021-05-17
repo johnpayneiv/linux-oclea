@@ -1,1 +1,1 @@
-obj-y +=	ambarella_scm.o
+obj-$(CONFIG_ARM64) +=	ambarella_scm.o

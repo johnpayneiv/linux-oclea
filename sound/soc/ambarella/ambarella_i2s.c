@@ -51,6 +51,10 @@ static unsigned int bclk_reverse = 0;
 module_param(bclk_reverse, uint, 0644);
 MODULE_PARM_DESC(bclk_reverse, "bclk_reverse.");
 
+static unsigned int rsp_falling = 0;
+module_param(rsp_falling, uint, 0644);
+MODULE_PARM_DESC(rsp_falling, "rsp_falling.");
+
 static DEFINE_MUTEX(clock_reg_mutex);
 
 /* ==========================================================================*/
@@ -352,8 +356,15 @@ static int ambarella_i2s_hw_params(struct snd_pcm_substream *substream,
 	else
 		clock_reg |= I2S_CLK_TX_PO_FALL;
 
+	if (rsp_falling)
+		clock_reg |= I2S_CLK_RX_PO_FALL;
+	else
+		clock_reg &= ~I2S_CLK_RX_PO_FALL;
+
 	writel_relaxed(clock_reg, priv_data->regbase + I2S_CLOCK_OFFSET);
 	mutex_unlock(&clock_reg_mutex);
+
+	msleep(1);
 
 	if ((i2s_intf->mode == I2S_I2S_MODE) && priv_data->ws_set_support)
 		writel_relaxed(I2S_WS_EN, priv_data->regbase + I2S_WS_OFFSET);

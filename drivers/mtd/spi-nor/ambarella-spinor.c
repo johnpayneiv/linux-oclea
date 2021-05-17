@@ -436,7 +436,7 @@ static int amba_spinor_write_reg(struct spi_nor *nor, u8 opcode, u8 *buf, int le
 {
 	struct ambarella_spinor *amba_spinor = nor->priv;
 	struct spinor_ctrl cmd;
-	struct spinor_ctrl addr;
+	struct spinor_ctrl data;
 	int rval;
 
 	dev_dbg(amba_spinor->dev, "write_reg(%#.2x): buf:%p len:%x\n",
@@ -447,12 +447,15 @@ static int amba_spinor_write_reg(struct spi_nor *nor, u8 opcode, u8 *buf, int le
 	cmd.lane = 1;
 	cmd.is_dtr = 0;
 
-	addr.buf = buf;
-	addr.len = len;
-	addr.lane = 1;
-	addr.is_dtr = 0;
+	data.buf = buf;
+	data.len = len;
+	data.lane = 1;
+	data.is_dtr = 0;
+	data.is_read = 0;
+	data.is_io = 0;
+	data.is_dma = 0;
 
-	rval = amba_spinor_send_cmd(amba_spinor, &cmd, &addr, NULL, NULL);
+	rval = amba_spinor_send_cmd(amba_spinor, &cmd, NULL, &data, NULL);
 
 	return rval;
 }

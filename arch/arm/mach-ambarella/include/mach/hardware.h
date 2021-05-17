@@ -31,7 +31,6 @@
 #include <plat/gpio.h>
 #include <plat/irq.h>
 #include <plat/pm.h>
-#include <plat/cortex.h>
 
 /* ==========================================================================*/
 #define	AMBA_DEV_MAJOR			(248)

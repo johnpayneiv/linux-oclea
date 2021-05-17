@@ -347,6 +347,7 @@ config ARCH_AMBARELLA
         select NEED_MACH_GPIO_H
         select NEED_MACH_IO_H
         select NEED_MACH_MEMORY_H
+        select GENERIC_IRQ_MULTI_HANDLER
         select USE_OF
         select ARCH_REQUIRE_GPIOLIB
         select HAVE_CLK

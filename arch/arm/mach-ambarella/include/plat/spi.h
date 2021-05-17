@@ -30,17 +30,15 @@
 /* ==========================================================================*/
 #if (CHIP_REV == S2L) || (CHIP_REV == S3L) || (CHIP_REV == S3) || (CHIP_REV == S5)
 #define SPI_AHB_INSTANCES			2
-#define SPI_AHB_SLAVE_INSTANCES			1
 #elif (CHIP_REV == S5L)
 #define SPI_AHB_INSTANCES			3
-#define SPI_AHB_SLAVE_INSTANCES			1
-#elif (CHIP_REV == CV1) || (CHIP_REV == CV2FS)
+#elif (CHIP_REV == CV1) || (CHIP_REV == CV2FS) || (CHIP_REV == CV5)
 #define SPI_AHB_INSTANCES			6
-#define SPI_AHB_SLAVE_INSTANCES			1
 #else
 #define SPI_AHB_INSTANCES			4
-#define SPI_AHB_SLAVE_INSTANCES			1
 #endif
+
+#define SPI_AHB_SLAVE_INSTANCES			1
 
 #if (CHIP_REV == S2L) || (CHIP_REV == S3L) || (CHIP_REV == S3) || \
 	(CHIP_REV == S5) || (CHIP_REV == S5L)
@@ -55,6 +53,14 @@
 #define SPI3_OFFSET			0x14000
 #define SPI4_OFFSET			0x34000
 #define SPI5_OFFSET			0x35000
+#define SPI_SLAVE_OFFSET		0x10000
+#elif (CHIP_REV == CV5)
+#define SPI0_OFFSET			0x11000
+#define SPI1_OFFSET			0x12000
+#define SPI2_OFFSET			0x13000
+#define SPI3_OFFSET			0x14000
+#define SPI4_OFFSET			0x25000
+#define SPI5_OFFSET			0x26000
 #define SPI_SLAVE_OFFSET		0x10000
 #else
 #define SPI0_OFFSET			0x11000
@@ -135,11 +141,30 @@
 #define SPI_WRITE_ONLY		1
 #define SPI_READ_ONLY		2
 
-/* Tx FIFO empty interrupt mask */
+/* SPI enable register */
+#define SPI_SSIENR_DISABLE	0
+#define SPI_SSIENR_ENABLE	1
+
+/* SPI interrupt mask */
 #define SPI_TXEIS_MASK		0x00000001
 #define SPI_TXOIS_MASK 		0x00000002
+#define SPI_RXUIS_MASK 		0x00000004
+#define SPI_RXOIS_MASK 		0x00000008
 #define SPI_RXFIS_MASK 		0x00000010
 #define SPI_FCRIS_MASK 		0x00000100
+
+/* SPI status register */
+#define SPI_SR_BUSY		0x00000001
+#define SPI_SR_TFNF		0x00000002
+#define SPI_SR_TFE		0x00000004
+#define SPI_SR_RFNE		0x00000008
+#define SPI_SR_RFF		0x00000010
+#define SPI_SR_TXE		0x00000020
+#define SPI_SR_DCOL		0x00000040
+
+/* SPI dma enable register */
+#define SPI_DMAC_RX_EN		0x1
+#define SPI_DMAC_TX_EN		0x2
 
 /* SPI Parameters */
 #define SPI_DUMMY_DATA		0xffff

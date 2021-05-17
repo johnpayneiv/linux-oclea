@@ -37,6 +37,7 @@
 #define CV25		(25000)
 #define CV2FS		(26000)
 #define CV28		(27000)
+#define CV5		(30000)
 
 #define CHIP_ID(x)	((x / 1000))
 #define CHIP_MAJOR(x)	((x / 100) % 10)
@@ -66,6 +67,8 @@
 #define CHIP_REV	CV2FS
 #elif defined(CONFIG_ARCH_AMBARELLA_CV28)
 #define CHIP_REV	CV28
+#elif defined(CONFIG_ARCH_AMBARELLA_CV5)
+#define CHIP_REV	CV5
 #else
 #error "Undefined CHIP_REV"
 #endif
@@ -75,30 +78,6 @@
 #if (CHIP_REV == S3)
 #define	CHIP_FIX_2NDCORTEX_BOOT	1
 #endif
-
-/* ==========================================================================*/
-
-#ifndef IOMEM
-#define IOMEM(x)	((void __force __iomem *)(x))
-#endif
-
-/* Physical Address and Size */
-#define AHB_PHYS_BASE			(0xe0000000)
-#define APB_PHYS_BASE			(0xe8000000)
-#define AHB_SIZE			(0x01000000)
-#define APB_SIZE			(0x01000000)
-
-#define AXI_PHYS_BASE			(0xf0000000)
-#define AXI_SIZE			(0x00030000)
-
-#define DRAMC_PHYS_BASE			(0xdffe0000)
-#define DRAMC_SIZE			(0x00020000)
-
-#define DBGBUS_PHYS_BASE		(0xec000000)
-#define DBGBUS_SIZE			(0x00200000)
-
-#define DBGFMEM_PHYS_BASE		(0xee000000)
-#define DBGFMEM_SIZE			(0x01000000)
 
 /* ==========================================================================*/
 

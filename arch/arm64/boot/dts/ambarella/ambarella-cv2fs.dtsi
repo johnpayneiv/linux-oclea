@@ -29,6 +29,7 @@
 		i2c3 = &i2c3;
 		i2c4 = &i2c4;
 		i2c5 = &i2c5;
+		i2c6 = &i2cs;
 		spi0 = &spi0;
 		spi1 = &spi1;
 		spi2 = &spi2;
@@ -257,6 +258,18 @@
 			pinctrl-0 = <&i2c5_pins_a>;
 			clock-frequency = <100000>;
 			amb,i2c-class = <0x81>;
+			status = "disabled";
+		};
+
+		i2cs: i2cs@e4007000 {
+			compatible = "ambarella,i2cs";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0xe4007000 0x1000>;
+			interrupts = <0 20 0x4>;
+			clocks = <&gclk_apb>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2cs0_pins>;
 			status = "disabled";
 		};
 
@@ -568,7 +581,7 @@
 				amb,pinmux-ids = <0x103a>;
 			};
 
-			i2c_slave_pins: i2c_slave@0 {
+			i2cs0_pins: i2cs@0 {
 				reg = <0>;
 				amb,pinmux-ids = <0x1001 0x1002>;
 			};
@@ -1027,6 +1040,10 @@
 			interrupts = <0 82 0x4>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&spi_slave_pins_a>;
+			clocks = <&gclk_ssi2>;
+			dmas = <&dma1 7>, <&dma1 8>;
+			dma-names = "tx", "rx";
+			amb,dma-buf-size = <2048>;
 			status = "disabled";
 		};
 
@@ -1266,7 +1283,7 @@
 			interrupts = <0 88 0x1>;
 			interrupt-names = "vout0";
 			rct-regmap = <&rct_syscon>;
-			clocks = <&pll_out_vo2>;
+			/* clocks = <&pll_out_vo2>; */
 		};
 
 		/* node for vout1(tv) controller */
@@ -1275,7 +1292,7 @@
 			interrupts = <0 87 0x1>;
 			interrupt-names = "vout1";
 			rct-regmap = <&rct_syscon>;
-			clocks = <&pll_out_hdmi>;
+			/* clocks = <&pll_out_hdmi>; */
 		};
 
 	};

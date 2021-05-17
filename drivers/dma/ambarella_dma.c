@@ -1099,7 +1099,7 @@ static struct dma_chan *ambdma_of_xlate(struct of_phandle_args *dma_spec,
 	}
 
 	bit_shift = AHBSP_DMA_SEL_BIT_SHIFT;
-	bit_mask = (1 << AHBSP_DMA_SEL_BIT_SHIFT) - 1;
+	bit_mask = AHBSP_DMA_SEL_BIT_MASK;
 	sel_channels = 32 / AHBSP_DMA_SEL_BIT_SHIFT;
 	reg_offset = chan->chan_id >= sel_channels ? DMA_SEL1_OFFSET : DMA_SEL0_OFFSET;
 	if (chan->chan_id >= sel_channels)

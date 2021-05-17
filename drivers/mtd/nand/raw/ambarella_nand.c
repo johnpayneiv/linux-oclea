@@ -289,9 +289,10 @@ static inline int nand_amb_is_sw_bch(struct ambarella_nand_info *nand_info)
 
 static inline void ambarella_fio_rct_reset(struct ambarella_nand_info *nand_info)
 {
-	regmap_write(nand_info->reg_rct, FIO_RESET_OFFSET, FIO_RESET_FIO_RST);
+	/* reset FIO_RESET_OFFSET */
+	regmap_write(nand_info->reg_rct, 0x74, 0x8);
 	msleep(1);
-	regmap_write(nand_info->reg_rct, FIO_RESET_OFFSET, 0);
+	regmap_write(nand_info->reg_rct, 0x74, 0);
 	msleep(1);
 }
 
@@ -444,7 +445,7 @@ static void amb_nand_set_timing(struct ambarella_nand_info *nand_info)
 		return;
 
 	regmap_read(nand_info->reg_rct, SYS_CONFIG_OFFSET, &poc);
-	clk_div2 = POC_GCLK_CORE_DIV2_MASK ? !(poc & POC_GCLK_CORE_DIV2_MASK) : 0;
+	clk_div2 = POC_PERIPHERAL_CLK_MODE ? !(poc & POC_PERIPHERAL_CLK_MODE) : 0;
 
 	clk = (clk_get_rate(nand_info->clk) / 1000000);
 	clk >>= clk_div2;
@@ -2040,7 +2041,7 @@ static int ambarella_nand_remove(struct platform_device *pdev)
 	if (nand_info) {
 		ambarella_unregister_event_notifier(&nand_info->system_event);
 
-		nand_release(nand_to_mtd(&nand_info->chip));
+		nand_release(&nand_info->chip);
 
 		ambarella_nand_put_resource(nand_info);
 
