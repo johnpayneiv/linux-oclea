@@ -121,6 +121,7 @@
 		compatible = "arm,gic-400";
 		#interrupt-cells = <3>;
 		#address-cells = <0>;
+		#size-cells = <1>;
 		interrupt-controller;
 		reg = <0xf3001000 0x1000>,	/* GIC Dist */
 		      <0xf3002000 0x2000>,	/* GIC CPU */
@@ -144,6 +145,14 @@
 		#size-cells = <0>;
 		device = <&s_scratchpad &rct_syscon>;
 		gpio = <85>;
+	};
+
+	ddr-controller@dffe000 {
+		compatible = "ambarella,ddrc";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <0xdffe0000 0x2000>;
+		burst-size = <0>;		/* This property will be overwritten in AMBOOT. */
 	};
 
 	n_apb@e4000000 { /* Non-Secure APB, but configurable */
@@ -919,7 +928,7 @@
 
 		spinor0: spinor@e0001000 {
 			compatible = "ambarella,spinor";
-			reg = <0xe0001000 0x1000>; /* spi nor controller */
+			reg = <0xe0001000 0x1000>;
 			interrupts = <0 73 0x4>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&spinor0_pins_a>;
@@ -932,10 +941,8 @@
 
 		nand0: nand@e0002000 {
 			compatible = "ambarella,nand";
-			#address-cells = <1>;
-			#size-cells = <1>;
 			reg = <0xe0002000 0x1000>;
-			interrupts = <0 68 0x4>;	/* fio_irq */
+			interrupts = <0 68 0x4>;
 			amb,rct-regmap = <&rct_syscon>;
 			pinctrl-names = "spinand";
 			pinctrl-0 = <&snand0_pins_a>;
@@ -947,8 +954,6 @@
 
 		sdmmc0: sdmmc0@e0004000 {
 			compatible = "ambarella,sdmmc";
-			#address-cells = <1>;
-			#size-cells = <0>;
 			reg = <0xe0004000 0x1000>;
 			interrupts = <0 72 0x4>;
 			pinctrl-names = "default";
@@ -966,8 +971,6 @@
 
 		sdmmc1: sdmmc1@e0005000 { /* SDIO0 */
 			compatible = "ambarella,sdmmc";
-			#address-cells = <1>;
-			#size-cells = <0>;
 			reg = <0xe0005000 0x1000>;
 			interrupts = <0 71 0x4>;
 			pinctrl-names = "default";
@@ -986,8 +989,6 @@
 
 		sdmmc2: sdmmc2@e0016000 { /* SDIO1 */
 			compatible = "ambarella,sdmmc";
-			#address-cells = <1>;
-			#size-cells = <0>;
 			reg = <0xe0016000 0x1000>;
 			interrupts = <0 64 0x4>;
 			pinctrl-names = "default";
@@ -1031,7 +1032,7 @@
 			interrupts = <0 83 0x4>;
 			#dma-cells = <1>;
 			dma-channels = <8>;
-			dma-requests = <25>;		/* request0 is reserved */
+			dma-requests = <23>;		/* request0 is reserved */
 		};
 
 		dma1: dma@e0021000 {
@@ -1040,7 +1041,7 @@
 			interrupts = <0 84 0x4>;
 			#dma-cells = <1>;
 			dma-channels = <8>;
-			dma-requests = <25>;		/* request0 is reserved */
+			dma-requests = <23>;		/* request0 is reserved */
 		};
 
 		gdma: gdma@e000b000 {
@@ -1098,7 +1099,6 @@
 			amb,ahb-12mhz-div = <5>;
 			clock-names = "ptp_ref";
 			clocks= <&osc>;
-			amb,ext-ref-clk;
 			/* amb,mdio-gpio; */
 			/* amb,tx-clk-invert; */
 		};
@@ -1178,9 +1178,9 @@
 
 		dmic: dmic@e0015000 {
 			compatible = "ambarella,dmic";
+			#sound-dai-cells = <0>;
 			reg = <0xe0015000 0x1000>;
 			amb,scr-regmap = <&scratchpad_syscon>;
-			#sound-dai-cells = <0>;
 			amb,custom-iir;
 		};
 
@@ -1358,7 +1358,7 @@
 			clocks = <&gclk_so>;
 		};
 
-		/* node for vin1 controller */
+		/* node for vin2 controller */
 		vinc2 {
 			compatible = "ambarella,vinc";
 			interrupts = <0 114 0x1 0 115 0x1 0 116 0x1>;
@@ -1375,7 +1375,6 @@
 			rct-regmap = <&rct_syscon>;
 			clocks = <&pll_out_vo2>;
 		};
-
 	};
 
 	bogus_bus {
@@ -1541,26 +1540,6 @@
 			amb,frac-mode;
 		};
 
-		pll_out_hdmi: pll_out_hdmi {
-			#clock-cells = <0>;
-			compatible = "ambarella,pll-hdmi-clock";
-			reg = <0xed080164 4>,
-			      <0xed080168 4>,
-			      <0xed080150 4>,
-			      <0xed080154 4>,
-			      <0xed080170 4>,
-			      <0x00000000 0>;
-			clocks = <&osc>;
-			clock-output-names = "pll_out_hdmi";
-			assigned-clocks = <&pll_out_hdmi>;
-			assigned-clock-rates = <24000000>;
-			amb,extra-pre-scaler;
-			amb,frac-mode;
-			amb,ctrl2-val = <0x30520000>;
-			amb,ctrl3-val = <0x00088004>;
-			amb,min-vco = <2500>; /* in MHz */
-		};
-
 		pll_out_vo2: pll_out_vo2 {
 			#clock-cells = <0>;
 			compatible = "ambarella,pll-clock";
@@ -1669,33 +1648,6 @@
 			      <0x00000000 0>;
 			clocks = <&osc>;
 			clock-output-names = "pll_out_enet";
-		};
-
-		/* Fixed 25MHz external clock inputs to SoC */
-		rmii_ext: rmii-external {
-			compatible = "fixed-clock";
-			#clock-cells = <0>;
-			clock-frequency = <25000000>;
-			clock-output-names = "rmii_ext";
-		};
-
-		/*
-		 * Fixed 50MHz internal clock for rmii. PS: this clock
-		 * is actually changeable, but no need to change it.
-		 */
-		rmii_int: rmii-internal {
-			compatible = "fixed-clock";
-			#clock-cells = <0>;
-			clock-frequency = <50000000>;
-			clock-output-names = "rmii_int";
-		};
-
-		enet_2nd_ref_clk: enet-2nd-ref-clk {
-			#clock-cells = <0>;
-			compatible = "ambarella,mux-clock";
-			reg = <0xed0806b8 4>;
-			clocks = <&rmii_ext>, <&rmii_int>;
-			clock-output-names = "enet_2nd_ref_clk";
 		};
 
 		gclk_uart0: gclk-uart0 {

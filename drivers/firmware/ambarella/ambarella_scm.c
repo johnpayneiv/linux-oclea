@@ -19,6 +19,7 @@
 #include <linux/io.h>
 #include <linux/slab.h>
 #include <linux/of.h>
+#include <linux/freezer.h>
 #include "ambarella_scm.h"
 
 static int ambarella_scm_query(void)
@@ -51,6 +52,120 @@ int ambarella_aarch64_cntfrq_update(void)
 	return res.a0;
 }
 EXPORT_SYMBOL(ambarella_aarch64_cntfrq_update);
+
+/*
+ *  Ambarella memory monitor
+ */
+int ambarella_scm_monitor_config(size_t addr, uint32_t length, uint32_t mode)
+{
+	u32 fn, cmd;
+	struct arm_smccc_res res;
+#ifdef FREEZE_SYSTEM
+	int error;
+	error = freeze_processes();
+	if (error)
+		return -EBUSY;
+	error = freeze_kernel_threads();
+	if (error) {
+		thaw_processes();
+		return -EBUSY;
+	}
+#endif
+
+	fn = SVC_SCM_FN(AMBA_SIP_MEMORY_MONITOR, AMBA_SIP_MONITOR_CONFIG);
+	cmd = ARM_SMCCC_CALL_VAL(ARM_SMCCC_FAST_CALL, ARM_SMCCC_SMC_64,
+			ARM_SMCCC_OWNER_SIP, fn);
+
+	arm_smccc_smc(cmd, addr, length, mode, 0, 0, 0, 0, &res);
+
+#ifdef FREEZE_SYSTEM
+	thaw_processes();
+	thaw_kernel_threads();
+#endif
+
+	return res.a0;
+}
+EXPORT_SYMBOL(ambarella_scm_monitor_config);
+
+int ambarella_scm_monitor_enable(size_t addr, uint32_t length, uint32_t mode)
+{
+	u32 fn, cmd;
+	struct arm_smccc_res res;
+#ifdef FREEZE_SYSTEM
+	int error;
+	error = freeze_processes();
+	if (error)
+		return -EBUSY;
+	error = freeze_kernel_threads();
+	if (error) {
+		thaw_processes();
+		return -EBUSY;
+	}
+#endif
+
+	fn = SVC_SCM_FN(AMBA_SIP_MEMORY_MONITOR, AMBA_SIP_MONITOR_ENABLE);
+	cmd = ARM_SMCCC_CALL_VAL(ARM_SMCCC_FAST_CALL, ARM_SMCCC_SMC_64,
+			ARM_SMCCC_OWNER_SIP, fn);
+
+	arm_smccc_smc(cmd, addr, length, mode, 0, 0, 0, 0, &res);
+
+#ifdef FREEZE_SYSTEM
+	thaw_processes();
+	thaw_kernel_threads();
+#endif
+
+	return res.a0;
+}
+EXPORT_SYMBOL(ambarella_scm_monitor_enable);
+
+int ambarella_scm_monitor_disable(size_t addr, uint32_t length, uint32_t mode)
+{
+	u32 fn, cmd;
+	struct arm_smccc_res res;
+#ifdef FREEZE_SYSTEM
+	int error;
+	error = freeze_processes();
+	if (error)
+		return -EBUSY;
+	error = freeze_kernel_threads();
+	if (error) {
+		thaw_processes();
+		return -EBUSY;
+	}
+#endif
+
+	fn = SVC_SCM_FN(AMBA_SIP_MEMORY_MONITOR, AMBA_SIP_MONITOR_DISABLE);
+	cmd = ARM_SMCCC_CALL_VAL(ARM_SMCCC_FAST_CALL, ARM_SMCCC_SMC_64,
+			ARM_SMCCC_OWNER_SIP, fn);
+
+	arm_smccc_smc(cmd, addr, length, mode, 0, 0, 0, 0, &res);
+
+#ifdef FREEZE_SYSTEM
+	thaw_processes();
+	thaw_kernel_threads();
+#endif
+
+	return res.a0;
+}
+EXPORT_SYMBOL(ambarella_scm_monitor_disable);
+
+/* Software Reset VP cluster */
+int ambarella_scm_soft_reset_vp(void)
+{
+	u32 fn, cmd;
+	struct arm_smccc_res res;
+
+	fn = SVC_SCM_FN(AMBA_SIP_VP_CONFIG, AMBA_SIP_VP_CONFIG_RESET);
+	cmd = ARM_SMCCC_CALL_VAL(ARM_SMCCC_FAST_CALL, ARM_SMCCC_SMC_64,
+			ARM_SMCCC_OWNER_SIP, fn);
+
+	arm_smccc_smc(cmd, 0, 0, 0, 0, 0, 0, 0, &res);
+	if (res.a0)
+		return -EINVAL;
+
+	return res.a0;
+}
+EXPORT_SYMBOL(ambarella_scm_soft_reset_vp);
 
 /* uuidbuf space at least 128bits */
 int ambarella_otp_get_uuid(u32 *uuidbuf)

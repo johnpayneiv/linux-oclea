@@ -36,6 +36,8 @@
 #include <linux/io.h>
 #include <linux/of_gpio.h>
 #include <linux/uaccess.h>
+#include <linux/regmap.h>
+#include <linux/mfd/syscon.h>
 #include <plat/rct.h>
 
 #define DRIVER_NAME "ambarella_phy"
@@ -62,7 +64,20 @@ struct ambarella_phy {
 	void __iomem *own_reg;
 	void __iomem *ctrl_reg;
 	void __iomem *ctrl2_reg;
-	u8 host_phy_num;
+	struct regmap *ana_regmap;
+	struct regmap *own_regmap;
+	struct regmap *phy_regmap;
+	struct regmap *pol_regmap;
+	u32 ana_offset;
+	u32 own_offset;
+	u32 phy_offset;
+	u32 pol_offset;
+
+	u32 host_phy_num;
+	u32 ovrcur_pol_inv;
+	bool usbp_ctrl_set;
+	u32 ctrl_device[2];
+	u32 ctrl_host[2];
 
 	int gpio_id;
 	bool id_is_otg;
@@ -72,9 +87,6 @@ struct ambarella_phy {
 	bool hub_active;
 	u8 port_type;	/* the behavior of the device port working */
 	u8 phy_route;	/* route D+/D- signal to device or host port */
-	bool usbp_ctrl_set;
-	u32 ctrl_device[2];
-	u32 ctrl_host[2];
 
 #ifdef CONFIG_PM
 	u32 pol_val;
@@ -86,24 +98,57 @@ struct ambarella_phy {
 
 static inline bool ambarella_usb0_is_host(struct ambarella_phy *amb_phy)
 {
-	return !(readl_relaxed(amb_phy->own_reg) & USB0_IS_HOST_MASK);
-};
+	u32 val;
+
+	if (amb_phy->own_regmap)
+		regmap_read(amb_phy->own_regmap, amb_phy->own_offset, &val);
+	else
+		val = readl_relaxed(amb_phy->own_reg);
+
+	return !(val & USB0_IS_HOST_MASK);
+}
 
 static inline void ambarella_switch_to_host(struct ambarella_phy *amb_phy)
 {
-	clrbitsl(amb_phy->own_reg, USB0_IS_HOST_MASK);
-	if (amb_phy->usbp_ctrl_set) {
-		writel_relaxed(amb_phy->ctrl_host[0], amb_phy->ctrl_reg);
-		writel_relaxed(amb_phy->ctrl_host[1], amb_phy->ctrl2_reg);
+	if (amb_phy->own_regmap) {
+		regmap_update_bits(amb_phy->own_regmap, amb_phy->own_offset,
+			USB0_IS_HOST_MASK, 0);
+
+		if (amb_phy->usbp_ctrl_set) {
+			regmap_write(amb_phy->phy_regmap, amb_phy->phy_offset + 0,
+				amb_phy->ctrl_host[0]);
+			regmap_write(amb_phy->phy_regmap, amb_phy->phy_offset + 4,
+				amb_phy->ctrl_host[1]);
+		}
+	} else {
+		clrbitsl(amb_phy->own_reg, USB0_IS_HOST_MASK);
+
+		if (amb_phy->usbp_ctrl_set) {
+			writel_relaxed(amb_phy->ctrl_host[0], amb_phy->ctrl_reg);
+			writel_relaxed(amb_phy->ctrl_host[1], amb_phy->ctrl2_reg);
+		}
 	}
 }
 
 static inline void ambarella_switch_to_device(struct ambarella_phy *amb_phy)
 {
-	setbitsl(amb_phy->own_reg, USB0_IS_HOST_MASK);
-	if (amb_phy->usbp_ctrl_set) {
-		writel_relaxed(amb_phy->ctrl_device[0], amb_phy->ctrl_reg);
-		writel_relaxed(amb_phy->ctrl_device[1], amb_phy->ctrl2_reg);
+	if (amb_phy->own_regmap) {
+		regmap_update_bits(amb_phy->own_regmap, amb_phy->own_offset,
+			USB0_IS_HOST_MASK, USB0_IS_HOST_MASK);
+
+		if (amb_phy->usbp_ctrl_set) {
+			regmap_write(amb_phy->phy_regmap, amb_phy->phy_offset + 0,
+				amb_phy->ctrl_device[0]);
+			regmap_write(amb_phy->phy_regmap, amb_phy->phy_offset + 4,
+				amb_phy->ctrl_device[1]);
+		}
+	} else {
+		setbitsl(amb_phy->own_reg, USB0_IS_HOST_MASK);
+
+		if (amb_phy->usbp_ctrl_set) {
+			writel_relaxed(amb_phy->ctrl_device[0], amb_phy->ctrl_reg);
+			writel_relaxed(amb_phy->ctrl_device[1], amb_phy->ctrl2_reg);
+		}
 	}
 }
 
@@ -119,26 +164,6 @@ static inline void ambarella_check_otg(struct ambarella_phy *amb_phy)
 		else
 			ambarella_switch_to_device(amb_phy);
 	}
-}
-
-static void __iomem *ambarella_phy_get_reg(struct platform_device *pdev, int index)
-{
-	struct resource *mem;
-	void __iomem *reg;
-
-	mem = platform_get_resource(pdev, IORESOURCE_MEM, index);
-	if (!mem) {
-		dev_err(&pdev->dev, "No mem resource: %d!\n", index);
-		return NULL;
-	}
-
-	reg = devm_ioremap(&pdev->dev, mem->start, resource_size(mem));
-	if (!reg) {
-		dev_err(&pdev->dev, "devm_ioremap() failed: %d\n", index);
-		return NULL;
-	}
-
-	return reg;
 }
 
 static int ambarella_phy_proc_show(struct seq_file *m, void *v)
@@ -243,6 +268,18 @@ static int ambarella_init_phy_switcher(struct ambarella_phy *amb_phy)
 	proc_create_data("usbphy0", S_IRUGO|S_IWUSR,
 		get_ambarella_proc_dir(), &proc_phy_switcher_fops, amb_phy);
 
+	/* setup over-current polarity */
+	if (amb_phy->pol_regmap) {
+		regmap_update_bits(amb_phy->pol_regmap, amb_phy->pol_offset,
+			BIT(13), amb_phy->ovrcur_pol_inv);
+		regmap_update_bits(amb_phy->own_regmap, amb_phy->own_offset,
+			USB0_IDDIG0_MASK, USB0_IDDIG0_MASK);
+	} else {
+		clrbitsl(amb_phy->pol_reg, 0x1 << 13);
+		setbitsl(amb_phy->pol_reg, amb_phy->ovrcur_pol_inv << 13);
+		setbitsl(amb_phy->own_reg, USB0_IDDIG0_MASK);
+	}
+
 	/* request gpio for PHY HUB reset */
 	if (gpio_is_valid(amb_phy->gpio_hub)) {
 		rval = devm_gpio_request(phy->dev, amb_phy->gpio_hub, "hub reset");
@@ -312,60 +349,30 @@ static int ambarella_init_phy_switcher(struct ambarella_phy *amb_phy)
 	return 0;
 }
 
-static int ambarella_init_host_phy(struct platform_device *pdev,
+static void ambarella_phy_of_parse(struct platform_device *pdev,
 			struct ambarella_phy *amb_phy)
 {
 	struct device_node *np = pdev->dev.of_node;
 	enum of_gpio_flags flags;
-	int ocp, rval;
+	int rval;
 
-	/* get register for overcurrent polarity */
-	amb_phy->pol_reg = ambarella_phy_get_reg(pdev, 1);
-	if (!amb_phy->pol_reg)
-		return -ENXIO;
+	rval = of_property_read_u32(np, "amb,host-phy-num", &amb_phy->host_phy_num);
+	if (rval < 0)
+		amb_phy->host_phy_num = 1;
 
-	/* get register for usb phy owner configure */
-	amb_phy->own_reg = ambarella_phy_get_reg(pdev, 2);
-	if (!amb_phy->own_reg)
-		return -ENXIO;
+	rval = of_property_read_u32(np, "amb,ocp-polarity", &amb_phy->ovrcur_pol_inv);
+	if (rval < 0)
+		amb_phy->ovrcur_pol_inv = 0;
 
-	amb_phy->usbp_ctrl_set = !!of_find_property(np, "amb,usbp-ds-set", NULL);
-	if (amb_phy->usbp_ctrl_set) {
-		/* get register for usb phy ctrl configure */
-		amb_phy->ctrl_reg = ambarella_phy_get_reg(pdev, 3);
-		if (!amb_phy->ctrl_reg)
-			return -ENXIO;
+	amb_phy->ovrcur_pol_inv = (!!amb_phy->ovrcur_pol_inv) << 13;
 
-		/* get register for usb phy ctrl2 configure */
-		amb_phy->ctrl2_reg = ambarella_phy_get_reg(pdev, 4);
-		if (!amb_phy->ctrl2_reg)
-			return -ENXIO;
+	rval = of_property_read_u32_array(np, "amb,ctrl-device", amb_phy->ctrl_device, 2);
+	if (rval == 0)
+		amb_phy->usbp_ctrl_set = true;
 
-		rval = of_property_read_u32_array(np, "amb,ctrl-device",
-			amb_phy->ctrl_device, 2);
-		if (rval < 0) {
-			amb_phy->usbp_ctrl_set = 0;
-			dev_dbg(&pdev->dev, "No device ctrl setting defined!\n");
-		}
-
-		if (amb_phy->usbp_ctrl_set) {
-			rval = of_property_read_u32_array(np, "amb,ctrl-host",
-				amb_phy->ctrl_host, 2);
-			if (rval < 0) {
-				amb_phy->usbp_ctrl_set = 0;
-				dev_dbg(&pdev->dev, "No host ctrl setting defined!\n");
-			}
-		}
-	}
-
-	/* see RCT Programming Guide for detailed info about ocp and owner */
-	rval = of_property_read_u32(np, "amb,ocp-polarity", &ocp);
-	if (rval == 0) {
-		clrbitsl(amb_phy->pol_reg, 0x1 << 13);
-		setbitsl(amb_phy->pol_reg, ocp << 13);
-	}
-
-	setbitsl(amb_phy->own_reg, USB0_IDDIG0_MASK);
+	rval = of_property_read_u32_array(np, "amb,ctrl-host", amb_phy->ctrl_host, 2);
+	if (rval == 0)
+		amb_phy->usbp_ctrl_set = true;
 
 	amb_phy->gpio_id = of_get_named_gpio_flags(np, "id-gpios", 0, &flags);
 	amb_phy->id_is_otg = !!(flags & OF_GPIO_ACTIVE_LOW);
@@ -375,8 +382,124 @@ static int ambarella_init_host_phy(struct platform_device *pdev,
 
 	amb_phy->gpio_hub = of_get_named_gpio_flags(np, "hub-gpios", 0, &flags);
 	amb_phy->hub_active = !!(flags & OF_GPIO_ACTIVE_LOW);
+}
 
-	ambarella_init_phy_switcher(amb_phy);
+static int ambarella_phy_get_resource(struct platform_device *pdev,
+			struct ambarella_phy *amb_phy)
+{
+	struct resource *mem;
+
+	/* get register for usb phy power on */
+	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	amb_phy->ana_reg = devm_ioremap_resource(&pdev->dev, mem);
+	if (IS_ERR(amb_phy->ana_reg)) {
+		dev_err(&pdev->dev, "ana devm_ioremap() failed\n");
+		return PTR_ERR(amb_phy->ana_reg);
+	}
+
+	/* get register for overcurrent polarity */
+	mem = platform_get_resource(pdev, IORESOURCE_MEM, 1);
+	amb_phy->pol_reg = devm_ioremap_resource(&pdev->dev, mem);
+	if (IS_ERR(amb_phy->pol_reg)) {
+		dev_err(&pdev->dev, "ana devm_ioremap() failed\n");
+		return PTR_ERR(amb_phy->pol_reg);
+	}
+
+	/* get register for usb phy owner configure */
+	mem = platform_get_resource(pdev, IORESOURCE_MEM, 2);
+	amb_phy->own_reg = devm_ioremap_resource(&pdev->dev, mem);
+	if (IS_ERR(amb_phy->own_reg)) {
+		dev_err(&pdev->dev, "ana devm_ioremap() failed\n");
+		return PTR_ERR(amb_phy->own_reg);
+	}
+
+	/* get register for usb phy ctrl configure */
+	mem = platform_get_resource(pdev, IORESOURCE_MEM, 3);
+	if (mem) {
+		amb_phy->ctrl_reg = devm_ioremap_resource(&pdev->dev, mem);
+		if (IS_ERR(amb_phy->ctrl_reg)) {
+			dev_err(&pdev->dev, "ctrl devm_ioremap() failed\n");
+			return PTR_ERR(amb_phy->ctrl_reg);
+		}
+	}
+
+	/* get register for usb phy ctrl2 configure */
+	mem = platform_get_resource(pdev, IORESOURCE_MEM, 4);
+	if (mem) {
+		amb_phy->ctrl2_reg = devm_ioremap_resource(&pdev->dev, mem);
+		if (IS_ERR(amb_phy->ctrl2_reg)) {
+			dev_err(&pdev->dev, "ctrl2 devm_ioremap() failed\n");
+			return PTR_ERR(amb_phy->ctrl2_reg);
+		}
+	}
+
+	if (amb_phy->ctrl_reg && amb_phy->ctrl2_reg) {
+		amb_phy->ctrl_device[0] = readl_relaxed(amb_phy->ctrl_reg);
+		amb_phy->ctrl_device[1] = readl_relaxed(amb_phy->ctrl2_reg);
+		amb_phy->ctrl_host[0] = amb_phy->ctrl_device[0];
+		amb_phy->ctrl_host[1] = amb_phy->ctrl_device[1];
+	}
+
+	return 0;
+}
+
+static int ambarella_phy_get_regmap(struct platform_device *pdev,
+			struct ambarella_phy *amb_phy)
+{
+	struct device_node *np = pdev->dev.of_node;
+
+	/* get register for usb phy owner configure */
+	amb_phy->own_regmap = syscon_regmap_lookup_by_phandle(np, "amb,own-regmap");
+	if (IS_ERR(amb_phy->own_regmap)) {
+		dev_err(&pdev->dev, "no own regmap!\n");
+		return PTR_ERR(amb_phy->own_regmap);
+	}
+
+	if (of_property_read_u32_index(np, "amb,own-regmap", 1, &amb_phy->own_offset)) {
+		dev_err(&pdev->dev, "couldn't get own offset\n");
+		return -EINVAL;
+	}
+
+	/* get register for usb phy power on */
+	amb_phy->ana_regmap = syscon_regmap_lookup_by_phandle(np, "amb,ana-regmap");
+	if (IS_ERR(amb_phy->ana_regmap)) {
+		dev_err(&pdev->dev, "no ana regmap!\n");
+		return PTR_ERR(amb_phy->ana_regmap);
+	}
+
+	if (of_property_read_u32_index(np, "amb,ana-regmap", 1, &amb_phy->ana_offset)) {
+		dev_err(&pdev->dev, "couldn't get ana offset\n");
+		return -EINVAL;
+	}
+
+	/* get register for overcurrent polarity */
+	amb_phy->pol_regmap = syscon_regmap_lookup_by_phandle(np, "amb,pol-regmap");
+	if (IS_ERR(amb_phy->pol_regmap)) {
+		dev_err(&pdev->dev, "no pol regmap!\n");
+		return PTR_ERR(amb_phy->pol_regmap);
+	}
+
+	if (of_property_read_u32_index(np, "amb,pol-regmap", 1, &amb_phy->pol_offset)) {
+		dev_err(&pdev->dev, "couldn't get pol offset\n");
+		return -EINVAL;
+	}
+
+	/* get register for usb phy ctrl configure */
+	amb_phy->phy_regmap = syscon_regmap_lookup_by_phandle(np, "amb,phy-regmap");
+	if (IS_ERR(amb_phy->phy_regmap)) {
+		dev_err(&pdev->dev, "no phy regmap!\n");
+		return PTR_ERR(amb_phy->phy_regmap);
+	}
+
+	if (of_property_read_u32_index(np, "amb,phy-regmap", 1, &amb_phy->phy_offset)) {
+		dev_err(&pdev->dev, "couldn't get phy offset\n");
+		return -EINVAL;
+	}
+
+	regmap_read(amb_phy->phy_regmap, amb_phy->phy_offset + 0, &amb_phy->ctrl_device[0]);
+	regmap_read(amb_phy->phy_regmap, amb_phy->phy_offset + 4, &amb_phy->ctrl_device[1]);
+	amb_phy->ctrl_host[0] = amb_phy->ctrl_device[0];
+	amb_phy->ctrl_host[1] = amb_phy->ctrl_device[1];
 
 	return 0;
 }
@@ -390,19 +513,23 @@ static int ambarella_phy_init(struct usb_phy *phy)
 	 * If there are 2 PHYs, no matter which PHY need to be initialized,
 	 * we initialize all of them at the same time.
 	 */
-	if (!(readl_relaxed(amb_phy->ana_reg) & ana_val)) {
-		setbitsl(amb_phy->ana_reg, ana_val);
-		mdelay(1);
+	if (amb_phy->ana_regmap) {
+		regmap_update_bits(amb_phy->ana_regmap, amb_phy->ana_offset,
+			ana_val, ana_val);
+	} else {
+		if (!(readl_relaxed(amb_phy->ana_reg) & ana_val))
+			setbitsl(amb_phy->ana_reg, ana_val);
 	}
+
+	mdelay(1);
 
 	return 0;
 }
 
 static int ambarella_phy_probe(struct platform_device *pdev)
 {
-	struct device_node *np = pdev->dev.of_node;
 	struct ambarella_phy *amb_phy;
-	int host_phy_num, rval;
+	int rval;
 
 	amb_phy = devm_kzalloc(&pdev->dev, sizeof(*amb_phy), GFP_KERNEL);
 	if (!amb_phy) {
@@ -421,19 +548,16 @@ static int ambarella_phy_probe(struct platform_device *pdev)
 	amb_phy->phy.label = DRIVER_NAME;
 	amb_phy->phy.init = ambarella_phy_init;
 
-	/* get register for usb phy power on */
-	amb_phy->ana_reg = ambarella_phy_get_reg(pdev, 0);
-	if (!amb_phy->ana_reg)
-		return -ENXIO;
+	rval = ambarella_phy_get_resource(pdev, amb_phy);
+	if (rval < 0) {
+		rval = ambarella_phy_get_regmap(pdev, amb_phy);
+		if (rval < 0)
+			return rval;
+	}
 
-	rval = of_property_read_u32(np, "amb,host-phy-num", &host_phy_num);
-	if (rval < 0)
-		amb_phy->host_phy_num = 0;
-	else
-		amb_phy->host_phy_num = host_phy_num;
+	ambarella_phy_of_parse(pdev, amb_phy);
 
-	if (amb_phy->host_phy_num > 0)
-		ambarella_init_host_phy(pdev, amb_phy);
+	ambarella_init_phy_switcher(amb_phy);
 
 	platform_set_drvdata(pdev, &amb_phy->phy);
 
@@ -470,8 +594,13 @@ static int ambarella_phy_suspend(struct platform_device *pdev,
 {
 	struct ambarella_phy *amb_phy = platform_get_drvdata(pdev);
 
-	amb_phy->pol_val = readl_relaxed(amb_phy->pol_reg);
-	amb_phy->own_val = readl_relaxed(amb_phy->own_reg);
+	if (amb_phy->pol_regmap) {
+		regmap_read(amb_phy->pol_regmap, amb_phy->pol_offset, &amb_phy->pol_val);
+		regmap_read(amb_phy->own_regmap, amb_phy->own_offset, &amb_phy->own_val);
+	} else {
+		amb_phy->pol_val = readl_relaxed(amb_phy->pol_reg);
+		amb_phy->own_val = readl_relaxed(amb_phy->own_reg);
+	}
 
 	return 0;
 }
@@ -480,8 +609,13 @@ static int ambarella_phy_resume(struct platform_device *pdev)
 {
 	struct ambarella_phy *amb_phy = platform_get_drvdata(pdev);
 
-	writel_relaxed(amb_phy->pol_val, amb_phy->pol_reg);
-	writel_relaxed(amb_phy->own_val, amb_phy->own_reg);
+	if (amb_phy->pol_regmap) {
+		regmap_write(amb_phy->pol_regmap, amb_phy->pol_offset, amb_phy->pol_val);
+		regmap_write(amb_phy->own_regmap, amb_phy->own_offset, amb_phy->own_val);
+	} else {
+		writel_relaxed(amb_phy->pol_val, amb_phy->pol_reg);
+		writel_relaxed(amb_phy->own_val, amb_phy->own_reg);
+	}
 
 	return 0;
 }

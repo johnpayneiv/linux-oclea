@@ -217,8 +217,8 @@ static int ambarella_cpufreq_table_parse(struct device *dev)
 
 static int ambarella_cpufreq_probe(struct platform_device *pdev)
 {
-	int rval, effective_clk;
 	struct device_node *np;
+	int rval, effective_clk;
 
 	np = pdev->dev.of_node;
 	if (!np)

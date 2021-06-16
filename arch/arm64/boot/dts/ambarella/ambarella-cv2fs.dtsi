@@ -859,7 +859,6 @@
 		sec_scratchpad_syscon: sec_scratchpad_syscon@e002f000 {
 			compatible = "ambarella,sec-scratchpad", "syscon";
 			reg = <0xe002f000 0x1000>;
-			amb,secure-device;
 			amb,secure-ctrl-bit = <31>;
 		};
 

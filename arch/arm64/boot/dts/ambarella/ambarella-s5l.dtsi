@@ -890,8 +890,12 @@
 			reg = <0xe0013000 0x1000>;
 			interrupts = <0 58 0x4>;
 			interrupt-names = "hdmi";
-			amb,hdmiphy = <0xec170010>;
 			amb,hdmi-version = <14>;
+			amb,phy-regmap = <&rct_syscon 0x10>;
+			/* phy val : <pib pibib tap0_cur tap1_cur tap2_cur temination> */
+			amb,hdmi-phy-val-version = <0>;
+			amb,hdmi-phy-val-low = <0 2 8 1 1 3>;
+			amb,hdmi-phy-val-high = <0 2 8 1 1 3>;
 		};
 	};
 

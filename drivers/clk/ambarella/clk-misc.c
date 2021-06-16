@@ -31,15 +31,15 @@
 #include <plat/rct.h>
 
 static const char *gclk_names[] = {
-	"pll_out_core", "pll_out_sd", "pll_out_hdmi", "pll_out_vo2", "pll_out_video_a",
-	"pll_out_video_b", "gclk_cortex", "gclk_cortex0", "gclk_cortex1", "gclk_axi",
-	"smp_twd", "gclk_ddr", "gclk_core", "gclk_ahb", "gclk_apb", "gclk_idsp",
-	"gclk_so", "gclk_so2", "gclk_vo2", "gclk_vo", "gclk_vo_a", "gclk_vo_b",
+	"pll_out_core", "pll_out_sd", "pll_out_hdmi", "pll_out_vo2", "pll_out_enet",
+	"pll_out_video_a", "pll_out_video_b", "gclk_cortex", "gclk_cortex0", "gclk_cortex1",
+	"gclk_axi", "smp_twd", "gclk_ddr", "gclk_core", "gclk_ahb", "gclk_apb", "gclk_idsp",
+	"gclk_idspv", "gclk_so", "gclk_so2", "gclk_vo2", "gclk_vo", "gclk_vo_a", "gclk_vo_b",
 	"gclk_nand", "gclk_sdxc", "gclk_sdio", "gclk_sd", "gclk_sd0", "gclk_sd1",
 	"gclk_sd2", "gclk_uart", "gclk_uart0", "gclk_uart1", "gclk_uart2",
 	"gclk_uart3", "gclk_uart4", "gclk_uart5", "gclk_uart6", "gclk_audio",
 	"gclk_audio_aux", "gclk_ir", "gclk_adc", "gclk_ssi", "gclk_ssi2", "gclk_ssi3",
-	"gclk_pwm", "gclk_stereo", "gclk_vision", "gclk_fex",
+	"gclk_pwm", "gclk_stereo", "gclk_vision", "gclk_fex", "pll_out_slvsec",
 };
 
 static int ambarella_clock_proc_show(struct seq_file *m, void *v)
@@ -53,7 +53,7 @@ static int ambarella_clock_proc_show(struct seq_file *m, void *v)
 		if (IS_ERR(gclk))
 			continue;
 
-		seq_printf(m, "\t%s:\t%lu Hz\n",
+		seq_printf(m, "\t%s:\t%ld Hz\n",
 			__clk_get_name(gclk), clk_get_rate(gclk));
 
 		clk_put(gclk);
@@ -67,9 +67,10 @@ static ssize_t ambarella_clock_proc_write(struct file *file,
 {
 	struct clk *gclk;
 	char *buf, clk_name[32];
-	int freq, rval = count;
+	unsigned long freq;
+	int rval = count;
 
-	pr_warn("!!!DANGEROUS!!! You must know what you are doning!\n");
+	pr_warn("!!!DANGEROUS!!! You must know what you are doing!\n");
 
 	buf = kmalloc(count, GFP_KERNEL);
 	if (!buf)
@@ -80,7 +81,7 @@ static ssize_t ambarella_clock_proc_write(struct file *file,
 		goto exit;
 	}
 
-	sscanf(buf, "%s %d", clk_name, &freq);
+	sscanf(buf, "%s %ld", clk_name, &freq);
 
 	gclk = clk_get_sys(NULL, clk_name);
 	if (IS_ERR(gclk)) {

@@ -89,6 +89,7 @@ struct ambdma_device {
 	struct dma_pool			*lli_pool;
 	void __iomem			*regbase;
 	void __iomem			*regscr;
+	struct regmap			*scr_regmap;
 	int				dma_irq;
 	/* dummy_desc is used to stop DMA immediately. */
 	struct ambdma_lli		*dummy_lli;
@@ -99,6 +100,7 @@ struct ambdma_device {
 	u32				non_support_prs : 1;
 	u32				nr_channels;
 	u32				nr_requests;
+	u32				scr_offset;
 
 #ifdef CONFIG_PM
 	u32				sel_val0;

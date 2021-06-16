@@ -256,8 +256,8 @@ static void ambarella_ssis_enable(struct ambarella_ssis *ssis)
 	ctrl0_reg.s.scpol = !!(ssis->spi_mode & SPI_CPOL);
 	ctrl0_reg.s.tmod = SPI_WRITE_READ;
 	ctrl0_reg.s.residue = 1;
-	ctrl0_reg.s.tx_lsb = 0;
-	ctrl0_reg.s.rx_lsb = 0;
+	ctrl0_reg.s.tx_lsb = !!(ssis->spi_mode & SPI_LSB_FIRST);
+	ctrl0_reg.s.rx_lsb = !!(ssis->spi_mode & SPI_LSB_FIRST);
 	ctrl0_reg.s.byte_ws = 0; /* always use 32 entries */
 	writel(ctrl0_reg.w, ssis->regbase + SPI_CTRLR0_OFFSET);
 
@@ -378,7 +378,7 @@ static long slavespi_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
 {
 	struct ambarella_ssis *ssis = miscdev_to_ssis(filp->private_data);
 	struct spi_ioc_transfer xfer;
-	u32 bpw, spi_mode, max_speed_hz;
+	u32 bpw, spi_mode, max_speed_hz, tmp;
 	int rval = 0;
 
 	mutex_lock(&ssis->mtx);
@@ -401,7 +401,11 @@ static long slavespi_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
 
 	/* write requests */
 	case SPI_IOC_WR_MODE:
-		rval = get_user(spi_mode, (u8 __user *)arg);
+		rval = get_user(tmp, (u8 __user *)arg);
+		if (rval == 0) {
+			spi_mode &= ~(SPI_MODE_3 | SPI_LSB_FIRST); /* only cares SPI_MODE & LSB_FIRST */
+			spi_mode |= tmp;
+		}
 		break;
 	case SPI_IOC_WR_BITS_PER_WORD:
 		rval = get_user(bpw, (__u8 __user *)arg);
@@ -413,9 +417,20 @@ static long slavespi_ioctl(struct file *filp, unsigned int cmd, unsigned long ar
 	/* not supported */
 	case SPI_IOC_RD_MODE32:
 	case SPI_IOC_WR_MODE32:
-	case SPI_IOC_RD_LSB_FIRST:
-	case SPI_IOC_WR_LSB_FIRST:
 		rval = -ENOTSUPP;
+		break;
+	case SPI_IOC_RD_LSB_FIRST:
+		rval = put_user((spi_mode & SPI_LSB_FIRST) ?  1 : 0,
+					(__u8 __user *)arg);
+		break;
+	case SPI_IOC_WR_LSB_FIRST:
+		rval = get_user(tmp, (__u8 __user *)arg);
+		if (rval == 0) {
+			if (tmp)
+				spi_mode |= SPI_LSB_FIRST;
+			else
+				spi_mode &= ~SPI_LSB_FIRST;
+		}
 		break;
 
 	case SPI_IOC_MESSAGE(1): /* we just support cmd with 1 message */

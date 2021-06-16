@@ -158,6 +158,14 @@
 		device = <&s_scratchpad &rct_syscon>;
 	};
 
+	ddr-controller@dffe000 {
+		compatible = "ambarella,ddrc";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <0xdffe0000 0x2000>;
+		burst-size = <0>;		/* This property will be overwritten in AMBOOT. */
+	};
+
 	n_apb@e4000000 { /* Non-Secure APB, but configurable */
 		compatible = "simple-bus";
 		#address-cells = <1>;
@@ -1023,7 +1031,6 @@
 			amb,ahb-12mhz-div = <5>;
 			clock-names = "ptp_ref";
 			clocks= <&osc>;
-			amb,ext-ref-clk;
 			/* amb,pps-avail; */
 			/* amb,mdio-gpio; */
 			/* amb,tx-clk-invert; */
@@ -1174,8 +1181,12 @@
 			reg = <0xe000b000 0x1000>;
 			interrupts = <0 85 0x4>;
 			interrupt-names = "hdmi";
-			amb,hdmiphy = <0xed080010>;
 			amb,hdmi-version = <20>;
+			amb,phy-regmap = <&rct_syscon 0x10>;
+			/* phy val : <pib pibib tap0_cur tap1_cur tap2_cur temination> */
+			amb,hdmi-phy-val-version = <0>;
+			amb,hdmi-phy-val-low = <0 2 8 1 1 3>;
+			amb,hdmi-phy-val-high = <0 2 8 1 1 3>;
 		};
 
 		scratchpad_syscon: scratchpad_syscon@e0022000 {

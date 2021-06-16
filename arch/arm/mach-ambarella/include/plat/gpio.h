@@ -151,8 +151,35 @@
 #define GPIO_PAD_PULL_DIR_5_OFFSET	0x10C
 #define GPIO_PAD_PULL_DIR_6_OFFSET	0x110
 
-#define GPIO_PAD_PULL_EN_OFFSET(b)	((b)<5 ? (b)*4 : 0x80 + ((b)-5)*4)
-#define GPIO_PAD_PULL_DIR_OFFSET(b)	((b)<5 ? 0x14 + (b)*4 : 0x8c + ((b)-5)*4)
+#define GPIO_PAD_PULL_EN_OFFSET(bank)	((bank) >= 5 ? \
+					(0x100 + (((bank) - 5) * 4)) : \
+					(0x80 + ((bank) * 4)))
+#define GPIO_PAD_PULL_DIR_OFFSET(bank)	((bank) >= 5 ? \
+					(0x10C + (((bank) - 5) * 4)) : \
+					(0x94 + ((bank) * 4)))
+
+#define GPIO_PAD_PULL_EN_REL_OFFSET(b)	((b)<5 ? (b)*4 : 0x80 + ((b)-5)*4)
+#define GPIO_PAD_PULL_DIR_REL_OFFSET(b)	((b)<5 ? 0x14 + (b)*4 : 0x8c + ((b)-5)*4)
+
+#elif (CHIP_REV == CV5)
+
+#define GPIO_PAD_PULL_EN_0_OFFSET	0x68
+#define GPIO_PAD_PULL_EN_1_OFFSET	0x6C
+#define GPIO_PAD_PULL_EN_2_OFFSET	0x70
+#define GPIO_PAD_PULL_EN_3_OFFSET	0x74
+#define GPIO_PAD_PULL_EN_4_OFFSET	0x78
+
+#define GPIO_PAD_PULL_DIR_0_OFFSET	0x7C
+#define GPIO_PAD_PULL_DIR_1_OFFSET	0x80
+#define GPIO_PAD_PULL_DIR_2_OFFSET	0x84
+#define GPIO_PAD_PULL_DIR_3_OFFSET	0x88
+#define GPIO_PAD_PULL_DIR_4_OFFSET	0x8C
+
+#define GPIO_PAD_PULL_EN_OFFSET(bank)	(0x68 + ((bank) * 4))
+#define GPIO_PAD_PULL_DIR_OFFSET(bank)	(0x7C + ((bank) * 4))
+
+#define GPIO_PAD_PULL_EN_REL_OFFSET(b)	((b)*4)
+#define GPIO_PAD_PULL_DIR_REL_OFFSET(b)	(0x14 + (b)*4)
 
 #else
 
@@ -172,8 +199,11 @@
 #define GPIO_PAD_PULL_DIR_5_OFFSET	0x44
 #define GPIO_PAD_PULL_DIR_6_OFFSET	0x48
 
-#define GPIO_PAD_PULL_EN_OFFSET(b)	((b)*4)
-#define GPIO_PAD_PULL_DIR_OFFSET(b)	(0x1c + (b)*4)
+#define GPIO_PAD_PULL_EN_OFFSET(bank)	(0x14 + ((bank) * 4))
+#define GPIO_PAD_PULL_DIR_OFFSET(bank)	(0x30 + ((bank) * 4))
+
+#define GPIO_PAD_PULL_EN_REL_OFFSET(b)	((b)*4)
+#define GPIO_PAD_PULL_DIR_REL_OFFSET(b)	(0x1c + (b)*4)
 
 #endif
 

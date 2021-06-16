@@ -33,6 +33,7 @@
 #include <linux/clk.h>
 #include <linux/of.h>
 #include <linux/io.h>
+#include <linux/iopoll.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
@@ -148,14 +149,13 @@ static inline void dai_rx_disable(struct amb_i2s_priv *priv_data)
 static inline void dai_tx_fifo_rst(struct amb_i2s_priv *priv_data)
 {
 	u32 val;
+	int rval;
 	struct ambarella_i2s_interface *i2s_intf = &priv_data->i2s_intf;
 
-	do {
-		val = readl_relaxed(priv_data->regbase + I2S_TX_STATUS_OFFSET);
-		val &= I2S_TX_IDLE_FLAG_BIT;
-		if (!val)
-			msleep(1);
-	} while (!val);
+	rval = readl_poll_timeout_atomic(priv_data->regbase + I2S_TX_STATUS_OFFSET,
+				val, !!(val & I2S_TX_IDLE_FLAG_BIT), 100, 10000);
+	if (rval < 0)
+		pr_err("%s: TX is busy.\n", __func__);
 
 	val = readl_relaxed(priv_data->regbase + I2S_INIT_OFFSET);
 	val |= I2S_TX_FIFO_RESET_BIT;
@@ -178,14 +178,12 @@ static inline void dai_tx_fifo_rst(struct amb_i2s_priv *priv_data)
 static inline void dai_rx_fifo_rst(struct amb_i2s_priv *priv_data)
 {
 	u32 val;
+	int rval;
 
-	do {
-		val = readl_relaxed(priv_data->regbase + I2S_RX_STATUS_OFFSET);
-		val &= I2S_RX_IDLE_FLAG_BIT;
-		if (!val) {
-			msleep(1);
-		}
-	} while (!val);
+	rval = readl_poll_timeout_atomic(priv_data->regbase + I2S_RX_STATUS_OFFSET,
+				val, !!(val & I2S_RX_IDLE_FLAG_BIT), 100, 10000);
+	if (rval < 0)
+		pr_err("%s: RX is busy.\n", __func__);
 
 	if(!capture_enabled)
 		return;

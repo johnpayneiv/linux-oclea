@@ -2454,32 +2454,13 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 	lp->enhance = !!of_find_property(np, "amb,enhance", NULL);
 	lp->mdio_gpio = !!of_find_property(np, "amb,mdio-gpio", NULL);
 
-	/* check if using external ref_clk, it's valid for RMII only */
-	lp->ext_ref_clk = !!of_find_property(np, "amb,ext-ref-clk", NULL);
-	if (lp->ext_ref_clk) {
-		mask = ENET_CLK_SRC_SEL_VAL << (lp->id * 4);
-		regmap_update_bits(lp->reg_rct, ENET_CLK_SRC_SEL_OFFSET, mask, 0x0);
-		mask = 1 << (5 + lp->id);
-		regmap_update_bits(lp->reg_rct, AHB_MISC_OFFSET, mask, 0x0);
-	} else {
-		mask = ENET_CLK_SRC_SEL_VAL << (lp->id * 4);
-		regmap_update_bits(lp->reg_rct, ENET_CLK_SRC_SEL_OFFSET, mask, mask);
-		mask = 1 << (5 + lp->id);
-		regmap_update_bits(lp->reg_rct, AHB_MISC_OFFSET, mask, mask);
-	}
-
-	/* check if using internal 125MHz clock, it's valid for RGMII only */
-	lp->int_gtx_clk125 = !!of_find_property(np, "amb,int-gtx-clk125", NULL);
-	if (lp->int_gtx_clk125)
-		regmap_update_bits(lp->reg_rct, ENET_GTXCLK_SRC_OFFSET, 0x1, 0x1);
-	else
-		regmap_update_bits(lp->reg_rct, ENET_GTXCLK_SRC_OFFSET, 0x1, 0x0);
-
 	lp->tx_clk_invert = !!of_find_property(np, "amb,tx-clk-invert", NULL);
 	if (lp->tx_clk_invert)
 		regmap_update_bits(lp->reg_scr, AHBSP_CTL_OFFSET, 1<<31, 1<<31);
-	else
-		regmap_update_bits(lp->reg_scr, AHBSP_CTL_OFFSET, 1<<31, 0<<31);
+
+	lp->second_ref_clk_50mhz = !!of_find_property(np, "amb,2nd-ref-clk-50mhz", NULL);
+	if (lp->second_ref_clk_50mhz)
+		regmap_update_bits(lp->reg_scr, AHBSP_CTL_OFFSET, 1<<23, 1<<23);
 
 	return 0;
 }
@@ -2718,25 +2699,11 @@ static int ambeth_drv_resume(struct platform_device *pdev)
 			lp->intf_type_mask, lp->intf_type_val);
 	}
 
-	if (lp->ext_ref_clk) {
-		regmap_update_bits(lp->reg_rct, ENET_CLK_SRC_SEL_OFFSET,
-			ENET_CLK_SRC_SEL_VAL, 0x0);
-		regmap_update_bits(lp->reg_rct, AHB_MISC_OFFSET, 0x20, 0x00);
-	} else {
-		regmap_update_bits(lp->reg_rct, ENET_CLK_SRC_SEL_OFFSET,
-			ENET_CLK_SRC_SEL_VAL, ENET_CLK_SRC_SEL_VAL);
-		regmap_update_bits(lp->reg_rct, AHB_MISC_OFFSET, 0x20, 0x20);
-	}
-
-	if (lp->int_gtx_clk125)
-		regmap_update_bits(lp->reg_rct, ENET_GTXCLK_SRC_OFFSET, 0x1, 0x1);
-	else
-		regmap_update_bits(lp->reg_rct, ENET_GTXCLK_SRC_OFFSET, 0x1, 0x0);
-
 	if (lp->tx_clk_invert)
 		regmap_update_bits(lp->reg_scr, AHBSP_CTL_OFFSET, 1<<31, 1<<31);
-	else
-		regmap_update_bits(lp->reg_scr, AHBSP_CTL_OFFSET, 1<<31, 0<<31);
+
+	if (lp->second_ref_clk_50mhz)
+		regmap_update_bits(lp->reg_scr, AHBSP_CTL_OFFSET, 1<<23, 1<<23);
 
 	ambeth_phy_init(lp);
 
