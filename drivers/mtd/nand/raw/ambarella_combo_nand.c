@@ -715,7 +715,7 @@ static void ambarella_nand_cc_erase(struct ambarella_nand_host *host, u32 page_a
 		val = NAND_CC_WORD_CMD1VAL0(SPINAND_CMD_BLK_ERASE);
 		writel_relaxed(val, host->regbase + NAND_CC_WORD_OFFSET);
 
-		val = SPINAND_ERR_PATTERN;
+		val = SPINAND_ERASE_ERR_PATTERN;
 		writel_relaxed(val, host->regbase + SPINAND_ERR_PATTERN_OFFSET);
 		val = SPINAND_DONE_PATTERN;
 		writel_relaxed(val, host->regbase + SPINAND_DONE_PATTERN_OFFSET);
@@ -745,7 +745,7 @@ static void ambarella_nand_cc_read(struct ambarella_nand_host *host, u32 page_ad
 		NAND_CC_WORD_CMD2VAL0(SPINAND_CMD_READ_CACHE_X4);
 	writel_relaxed(val, host->regbase + NAND_CC_WORD_OFFSET);
 
-	writel_relaxed(SPINAND_ERR_PATTERN, host->regbase + SPINAND_ERR_PATTERN_OFFSET);
+	writel_relaxed(SPINAND_READ_ERR_PATTERN, host->regbase + SPINAND_ERR_PATTERN_OFFSET);
 	writel_relaxed(SPINAND_DONE_PATTERN, host->regbase + SPINAND_DONE_PATTERN_OFFSET);
 
 	val = SPINAND_CC2_ENABLE | SPINAND_CC_DATA_SRC_DMA |
@@ -766,7 +766,7 @@ static void ambarella_nand_cc_write(struct ambarella_nand_host *host, u32 page_a
 		NAND_CC_WORD_CMD2VAL0(SPINAND_CMD_PROG_EXEC);
 	writel_relaxed(val, host->regbase + NAND_CC_WORD_OFFSET);
 
-	writel_relaxed(SPINAND_ERR_PATTERN, host->regbase + SPINAND_ERR_PATTERN_OFFSET);
+	writel_relaxed(SPINAND_PRG_ERR_PATTERN, host->regbase + SPINAND_ERR_PATTERN_OFFSET);
 	writel_relaxed(SPINAND_DONE_PATTERN, host->regbase + SPINAND_DONE_PATTERN_OFFSET);
 
 	val = SPINAND_CC_AUTO_STSCHK | SPINAND_CC2_ENABLE | SPINAND_CC_DATA_SRC_DMA |

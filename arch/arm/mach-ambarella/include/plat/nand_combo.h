@@ -283,8 +283,10 @@
 #define SPINAND_DONE_PATTERN		(0x1 << 16)
 
 /* SPINAND_ERR_PATTERN_REG */
-#define SPINAND_ERR_PATTERN		((0x2c << 16) | 0x2c)
-#define SPINAND_PRG_ERR_PATTERN		((0xc << 16) | 0xc)
+#define SPINAND_ERR_PATTERN			((0x2c << 16) | 0x2c)
+#define SPINAND_PRG_ERR_PATTERN		((0x8 << 16) | 0x8)
+#define SPINAND_READ_ERR_PATTERN	((0x20 << 16) | 0x20)
+#define SPINAND_ERASE_ERR_PATTERN	((0x4 << 16) | 0x4)
 
 /*
  * Bitwise Definition for FDMA Engine

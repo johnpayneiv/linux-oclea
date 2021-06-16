@@ -404,6 +404,11 @@ static int ambdma_stop_channel(struct ambdma_chan *amb_chan)
 				u32 val = readl(amb_dma->regbase + DMA_EARLY_END_OFFSET);
 				val |= 0x1 << amb_chan->chan.chan_id;
 				writel(val, amb_dma->regbase + DMA_EARLY_END_OFFSET);
+
+				amb_chan->status = AMBDMA_STATUS_IDLE;
+				ambdma_return_desc(amb_chan, ambdma_first_stopping(amb_chan));
+				/* clear early end dma interrupt */
+				writel(0x0, dma_chan_sta_reg(amb_chan));
 			}
 		} else {
 			/* Disable DMA: this sequence is not mentioned at PRM.*/
@@ -458,6 +463,8 @@ static int ambdma_resume_channel(struct ambdma_chan *amb_chan)
 
 static void ambdma_dostart(struct ambdma_chan *amb_chan, struct ambdma_desc *first)
 {
+	ktime_t timeout;
+
 	/*
 	 * if DMA channel is not idle right now, the DMA descriptor
 	 * will be started at ambdma_tasklet().
@@ -475,6 +482,28 @@ static void ambdma_dostart(struct ambdma_chan *amb_chan, struct ambdma_desc *fir
 	writel(first->txd.phys, dma_chan_da_reg(amb_chan));
 	writel(DMA_CHANX_CTR_EN | DMA_CHANX_CTR_D, dma_chan_ctr_reg(amb_chan));
 	amb_chan->status = AMBDMA_STATUS_BUSY;
+
+	/*
+	 * wait for the decriptor-precessing logic write control register
+	 * this can gurantee get an stable status
+	 */
+	timeout = ktime_add_ms(ktime_get(), 100);
+	while(1) {
+		u32 ctrl,attr;
+
+		ctrl = readl(dma_chan_ctr_reg(amb_chan));
+		attr = first->lli->attr;
+
+		if((((attr & 0x00E00000) >> 21) == ((ctrl & 0x38000000) >> 27)) &&
+		   (((attr & 0x00180000) >> 19) == ((ctrl & 0x00C00000) >> 22)) &&
+		   (((attr & 0x00070000) >> 16) == ((ctrl & 0x07000000) >> 24)))
+			break;
+		if (ktime_after(ktime_get(), timeout))
+			break;
+
+		cpu_relax();
+	}
+	BUG_ON(ktime_after(ktime_get(), timeout));
 }
 
 static dma_cookie_t ambdma_tx_submit(struct dma_async_tx_descriptor *tx)
@@ -1081,15 +1110,15 @@ static struct dma_chan *ambdma_of_xlate(struct of_phandle_args *dma_spec,
 			       struct of_dma *ofdma)
 {
 	struct ambdma_device *amb_dma = ofdma->of_dma_data;
-	unsigned int request = dma_spec->args[0];
-	unsigned int val, reg_offset, sel_channels, bit_shift, bit_mask;
-	int chan_id_index;
 	struct dma_chan *chan;
+	unsigned int request = dma_spec->args[0];
+	unsigned int val, reg_offset, sel_channels;
+	int chan_id_index;
 
 	if (request >= amb_dma->nr_requests)
 		return NULL;
 
-	if (amb_dma->regscr == NULL)
+	if (amb_dma->regscr == NULL && amb_dma->scr_regmap == NULL)
 		return of_dma_xlate_by_chan_id(dma_spec, ofdma);
 
 	chan = dma_get_any_slave_channel(&amb_dma->dma_dev);
@@ -1098,19 +1127,24 @@ static struct dma_chan *ambdma_of_xlate(struct of_phandle_args *dma_spec,
 		return NULL;
 	}
 
-	bit_shift = AHBSP_DMA_SEL_BIT_SHIFT;
-	bit_mask = AHBSP_DMA_SEL_BIT_MASK;
 	sel_channels = 32 / AHBSP_DMA_SEL_BIT_SHIFT;
 	reg_offset = chan->chan_id >= sel_channels ? DMA_SEL1_OFFSET : DMA_SEL0_OFFSET;
 	if (chan->chan_id >= sel_channels)
-		chan_id_index = chan->chan_id - sel_channels;
+		chan_id_index = (chan->chan_id - sel_channels) * AHBSP_DMA_SEL_BIT_SHIFT;
 	else
-		chan_id_index = chan->chan_id;
+		chan_id_index = chan->chan_id * AHBSP_DMA_SEL_BIT_SHIFT;
 
-	val = readl_relaxed(amb_dma->regscr + reg_offset);
-	val &= ~(bit_mask << (chan_id_index * bit_shift));
-	val |= request << (chan_id_index * bit_shift);
-	writel_relaxed(val, amb_dma->regscr + reg_offset);
+	if (amb_dma->regscr) {
+		val = readl_relaxed(amb_dma->regscr + reg_offset);
+		val &= ~(AHBSP_DMA_SEL_BIT_MASK << chan_id_index);
+		val |= request << chan_id_index;
+		writel_relaxed(val, amb_dma->regscr + reg_offset);
+	} else if (amb_dma->scr_regmap) {
+		regmap_update_bits(amb_dma->scr_regmap,
+			amb_dma->scr_offset + reg_offset,
+			AHBSP_DMA_SEL_BIT_MASK << chan_id_index,
+			request << chan_id_index);
+	}
 
 	return chan;
 }
@@ -1152,6 +1186,19 @@ static int ambarella_dma_probe(struct platform_device *pdev)
 		if (!amb_dma->regscr) {
 			dev_err(&pdev->dev, "devm_ioremap() failed for regscr\n");
 			ret = -ENOMEM;
+			goto ambdma_dma_probe_exit;
+		}
+	} else {
+		amb_dma->scr_regmap = syscon_regmap_lookup_by_phandle(np, "amb,scr-regmap");
+		if (IS_ERR(amb_dma->scr_regmap)) {
+			dev_err(&pdev->dev, "no regmap!\n");
+			ret = PTR_ERR(amb_dma->scr_regmap);
+			goto ambdma_dma_probe_exit;
+		}
+
+		if (of_property_read_u32_index(np, "amb,scr-regmap", 1, &amb_dma->scr_offset)) {
+			dev_err(&pdev->dev, "couldn't get channel select offset\n");
+			ret = -EINVAL;
 			goto ambdma_dma_probe_exit;
 		}
 	}
@@ -1375,6 +1422,11 @@ static int ambarella_dma_suspend(struct platform_device *pdev, pm_message_t stat
 		amb_dma->sel_val0 = readl_relaxed(amb_dma->regscr + DMA_SEL0_OFFSET);
 		if (amb_dma->nr_requests > 16)
 			amb_dma->sel_val1 = readl_relaxed(amb_dma->regscr + DMA_SEL1_OFFSET);
+	} else if (amb_dma->scr_regmap != NULL) {
+		regmap_read(amb_dma->scr_regmap,
+			amb_dma->scr_offset + DMA_SEL0_OFFSET, &amb_dma->sel_val0);
+		regmap_read(amb_dma->scr_regmap,
+			amb_dma->scr_offset + DMA_SEL1_OFFSET, &amb_dma->sel_val1);
 	}
 
 	return 0;
@@ -1390,6 +1442,11 @@ static int ambarella_dma_resume(struct platform_device *pdev)
 		writel(amb_dma->sel_val0, amb_dma->regscr + DMA_SEL0_OFFSET);
 		if (amb_dma->nr_requests > 16)
 			writel(amb_dma->sel_val1, amb_dma->regscr + DMA_SEL1_OFFSET);
+	} else if (amb_dma->scr_regmap != NULL) {
+		regmap_write(amb_dma->scr_regmap,
+			amb_dma->scr_offset + DMA_SEL0_OFFSET, amb_dma->sel_val0);
+		regmap_write(amb_dma->scr_regmap,
+			amb_dma->scr_offset + DMA_SEL1_OFFSET, amb_dma->sel_val1);
 	}
 
 	/* restore dma channel register */

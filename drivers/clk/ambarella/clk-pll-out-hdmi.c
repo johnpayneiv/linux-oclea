@@ -54,15 +54,18 @@ union frac_reg_u {
 
 union ctrl2_reg_u {
 	struct {
-		u32	hs_div_ctrl				: 12;	/* [11:0] */
+		u32	xvco_div			: 4;	/* [3:0] */
+		u32	xfsdiv				: 4;	/* [7:4] */
+		u32	xfsout				: 4;	/* [11:8] */
 		u32	bypass_hs_div			: 1;	/* [12] */
-		u32	bypass_mdiv				: 1;	/* [13] */
-		u32	diff_vco_en				: 1;	/* [14] */
+		u32	bypass_mdiv			: 1;	/* [13] */
+		u32	diff_vco_en			: 1;	/* [14] */
 		u32	duty_cycle_tune			: 1;	/* [15] */
 		u32	charge_pump_cur			: 8;	/* [23:16] */
-		u32 reserved1				: 4;	/* [27:24] */
-		u32	change_pump_dc_bias		: 2;	/* [29:28] */
-		u32	dsm_mode_ctrl			: 2;	/* [31:30] */
+		u32 	pll_dsm_type_sel		: 2;	/* [25:24] */
+		u32 	reserved1			: 2;	/* [27:26] */
+		u32	lctrl_related			: 2;	/* [29:28] */
+		u32	reserved2			: 2;	/* [31:30] */
 	} s;
 	u32	w;
 };
@@ -70,17 +73,17 @@ union ctrl2_reg_u {
 
 union ctrl3_reg_u {
 	struct {
-		u32	reserved1				: 1;	/* [0] */
+		u32	reserved1			: 1;	/* [0] */
 		u32	pll_vco_range			: 2;	/* [2:1] */
 		u32	pll_vco_clamp			: 2;	/* [4:3] */
-		u32	reserved2				: 2;	/* [6:5] */
+		u32	reserved2			: 2;	/* [6:5] */
 		u32	dsm_dither_gain			: 2;	/* [8:7] */
-		u32	reserved3				: 4;	/* [12:9] */
-		u32	ff_zero_resistor_sel	: 4;	/* [16:13] */
+		u32	reserved3			: 4;	/* [12:9] */
+		u32	ff_zero_resistor_sel		: 4;	/* [16:13] */
 		u32	bias_current_ctrl		: 3;	/* [19:17] */
-		u32	bypass_jdiv				: 1;	/* [20] */
-		u32	bypass_jout				: 1;	/* [21] */
-		u32 reserved4				: 10;	/* [31:22] */
+		u32	bypass_jdiv			: 1;	/* [20] */
+		u32	bypass_jout			: 1;	/* [21] */
+		u32 	reserved4			: 10;	/* [31:22] */
 	} s;
 	u32	w;
 };
@@ -107,44 +110,65 @@ struct amb_clk_pll_hdmi {
 		do {writel(v, p); writel((v | 0x1), p); writel(v, p);} while (0)
 
 static int ambarella_pll_hdmi_calc_vco(struct clk_hw *hw,
-			unsigned long pre_scaler, unsigned long intp,
-			unsigned long sdiv, unsigned long parent_rate)
+				       unsigned long pre_scaler, unsigned long intp,
+				       unsigned long sdiv, unsigned long rate)
 {
 	struct amb_clk_pll_hdmi *clk_pll = to_amb_clk_pll_hdmi(hw);
-	unsigned long pllvco;
-	unsigned long div2_mult;
+	u64 pllvco, freq;
+	u32 Nxvco, Nfsdiv;
 	union ctrl2_reg_u ctrl2_val;
 	u32 pll_vco_range = 1;
 
-	//for hdmi pll, div2_mult depend on ctrl2 bit[2]
 	ctrl2_val.w = readl(clk_pll->ctrl2_reg);
-	if(ctrl2_val.w & 0x4)
-		div2_mult = 2;
-	else
-		div2_mult = 1;
 
-	pllvco = (parent_rate / pre_scaler) * intp * sdiv * div2_mult;
-	pllvco = pllvco / 1000000;//MHz
+	freq = rate / pre_scaler;
+	Nxvco = ctrl2_val.s.xvco_div + 1;
 
-	if(ctrl2_val.s.diff_vco_en){
-		if((pllvco > 1980) && (pllvco < 3900)){
-			pll_vco_range = 1;
-		}else if((pllvco > 2600) && (pllvco < 5250)){
-			pll_vco_range = 2;
-		}else if((pllvco > 3900) && (pllvco < 7600)){
-			pll_vco_range = 3;
-		}else{
-			pll_vco_range = 0;
-		}
-	}else{
-		if((pllvco > 530) && (pllvco < 1000)){
-			pll_vco_range = 1;
-		}else if((pllvco > 700) && (pllvco < 1320)){
-			pll_vco_range = 2;
-		}else if((pllvco > 980) && (pllvco < 1800)){
-			pll_vco_range = 3;
+	if(ctrl2_val.s.xfsdiv < 0b0100){
+		Nfsdiv = 1;
+	} else if(ctrl2_val.s.xfsdiv >= 0b1000){
+		Nfsdiv = 2;
+	} else {
+		switch (ctrl2_val.s.xfsdiv)
+		{
+		case 0b0100:
+			Nfsdiv = 2;
+			break;
+		case 0b0101:
+			Nfsdiv = 3;
+			break;
+		case 0b0110:
+			Nfsdiv = 5;
+			break;
+		case 0b0111:
+			Nfsdiv = 7;
+			break;
+		default:
+			pr_err("%s: calc vco error\n", clk_hw_get_name(hw));
+			return -1;
 		}
 	}
+	pllvco = freq * Nxvco * Nfsdiv * intp * sdiv;
+	pllvco = pllvco / 1000000;/*unit: MHz */
+
+	if (ctrl2_val.s.diff_vco_en) {
+		if ((pllvco > 1980) && (pllvco < 3900))
+			pll_vco_range = 1;
+		else if ((pllvco > 2600) && (pllvco < 5250))
+			pll_vco_range = 2;
+		else if ((pllvco > 3900) && (pllvco < 7600))
+			pll_vco_range = 3;
+		else
+			pll_vco_range = 0;
+	} else {
+		if ((pllvco > 2470) && (pllvco < 4720))
+			pll_vco_range = 1;
+		else if ((pllvco > 3220) && (pllvco < 5750))
+			pll_vco_range = 2;
+		else if ((pllvco > 4650) && (pllvco < 6800))
+			pll_vco_range = 3;
+	}
+
 	return pll_vco_range;
 }
 
@@ -158,9 +182,19 @@ static int ambarella_pll_hdmi_set_ctrl2(struct clk_hw *hw, unsigned long rate)
 	else
 		ctrl2_val.w = readl(clk_pll->ctrl2_reg);
 
-	//tmp hard code ctrl2 for 4kp60 clock
-	if(rate == 5940000000)
-		ctrl2_val.w = 0x30520040;
+	if(rate > 3000000000)
+		ctrl2_val.s.xfsdiv = 4;
+	else
+		ctrl2_val.s.xfsdiv = 0;
+
+	if(rate > 5000000000)
+		ctrl2_val.s.duty_cycle_tune = 1;
+	else
+		ctrl2_val.s.duty_cycle_tune = 0;
+
+	ctrl2_val.s.lctrl_related = 0x3;
+
+	ctrl2_val.s.charge_pump_cur = 0x52;
 
 	writel(ctrl2_val.w, clk_pll->ctrl2_reg);
 
@@ -168,14 +202,14 @@ static int ambarella_pll_hdmi_set_ctrl2(struct clk_hw *hw, unsigned long rate)
 }
 
 static int ambarella_pll_hdmi_set_ctrl3(struct clk_hw *hw, unsigned long pre_scaler,
-		unsigned long intp, unsigned long sdiv, unsigned long parent_rate, unsigned long rate)
+					unsigned long intp, unsigned long sdiv, unsigned long parent_rate, unsigned long rate)
 {
 	struct amb_clk_pll_hdmi *clk_pll = to_amb_clk_pll_hdmi(hw);
 	union ctrl3_reg_u ctrl3_val;
 
-	if(clk_pll->frac_nega){
+	if (clk_pll->frac_nega) {
 		if (clk_pll->ctrl3_val != 0)
-			ctrl3_val.w =clk_pll->ctrl3_val;
+			ctrl3_val.w = clk_pll->ctrl3_val;
 		else
 			ctrl3_val.w = readl(clk_pll->ctrl3_reg);
 
@@ -183,19 +217,16 @@ static int ambarella_pll_hdmi_set_ctrl3(struct clk_hw *hw, unsigned long pre_sca
 			ctrl3_val.w |= (1 << 12);
 		else
 			ctrl3_val.w &= ~(1 << 12);
-	}else{
+	} else {
 		if (clk_pll->ctrl3_val != 0)
-			ctrl3_val.w =clk_pll->ctrl3_val;
-		else{
+			ctrl3_val.w = clk_pll->ctrl3_val;
+		else {
 			ctrl3_val.w = readl(clk_pll->ctrl3_reg);
-			ctrl3_val.s.pll_vco_range = ambarella_pll_hdmi_calc_vco(hw, pre_scaler, intp, sdiv,
-									parent_rate);
 		}
 	}
 
-	//tmp hard code ctrl2 for 4kp60 clock
-	if(rate == 5940000000)
-		ctrl3_val.w = 0x88006;
+	ctrl3_val.s.pll_vco_range = ambarella_pll_hdmi_calc_vco(hw, pre_scaler, intp, sdiv,
+				    parent_rate);
 
 	writel(ctrl3_val.w, clk_pll->ctrl3_reg);
 
@@ -225,9 +256,8 @@ static unsigned long ambarella_pll_hdmi_recalc_rate(struct clk_hw *hw,
 			pre_scaler >>= 4;
 			pre_scaler++;
 		}
-	} else {
+	} else
 		pre_scaler = 1;
-	}
 
 	if (clk_pll->post_reg != NULL) {
 		post_scaler = readl(clk_pll->post_reg);
@@ -235,9 +265,8 @@ static unsigned long ambarella_pll_hdmi_recalc_rate(struct clk_hw *hw,
 			post_scaler >>= 4;
 			post_scaler++;
 		}
-	} else {
+	} else
 		post_scaler = 1;
-	}
 
 	if (ctrl_val.s.bypass || ctrl_val.s.force_bypass)
 		return parent_rate / pre_scaler / post_scaler;
@@ -280,14 +309,14 @@ static unsigned long ambarella_pll_hdmi_recalc_rate(struct clk_hw *hw,
 	ctrl2_val.w = readl(clk_pll->ctrl2_reg);
 	ctrl3_val.w = readl(clk_pll->ctrl3_reg);
 
-	if((ctrl2_val.w == 0x30520040) && (ctrl3_val.w == 0x88006))
-		dividend = 5940000000;
+	if(ctrl2_val.s.xfsdiv == 4)
+		dividend = dividend * 2;
 
 	return dividend;
 }
 
 static long ambarella_pll_hdmi_round_rate(struct clk_hw *hw, unsigned long rate,
-				unsigned long *parent_rate)
+		unsigned long *parent_rate)
 {
 	if (to_amb_clk_pll_hdmi(hw)->frac_mode)
 		return rate;
@@ -296,9 +325,9 @@ static long ambarella_pll_hdmi_round_rate(struct clk_hw *hw, unsigned long rate,
 }
 
 static int ambarella_pll_hdmi_set_rate(struct clk_hw *hw, unsigned long rate,
-			unsigned long parent_rate)
+				       unsigned long parent_rate)
 {
-	struct amb_clk_pll_hdmi*clk_pll = to_amb_clk_pll_hdmi(hw);
+	struct amb_clk_pll_hdmi *clk_pll = to_amb_clk_pll_hdmi(hw);
 	unsigned long max_numerator, max_denominator;
 	unsigned long rate_tmp, rate_resolution, rate_org, pre_scaler = 1, post_scaler = 1;
 	unsigned long intp, sdiv = 1, sout = 1;
@@ -314,10 +343,11 @@ static int ambarella_pll_hdmi_set_rate(struct clk_hw *hw, unsigned long rate,
 		return 0;
 	}
 
+	/* if rate > 3G, set Nfsdiv to 2 */
 	rate_org = rate;
 
-	if(rate == 5940000000ull)
-		rate = 2970000000ull;
+	if (rate >= 3000000000UL)
+		rate = rate / 2;
 
 	rate *= clk_pll->fix_divider;
 
@@ -328,7 +358,7 @@ static int ambarella_pll_hdmi_set_rate(struct clk_hw *hw, unsigned long rate,
 
 	if (rate < parent_rate) {
 		pr_err("%s: Error: target rate is too slow: %ld!\n",
-				clk_hw_get_name(hw), rate);
+		       clk_hw_get_name(hw), rate);
 		return -EINVAL;
 	}
 
@@ -351,7 +381,7 @@ static int ambarella_pll_hdmi_set_rate(struct clk_hw *hw, unsigned long rate,
 	max_numerator = 128;
 	max_denominator = 16;
 	rational_best_approximation(rate_tmp, parent_rate, max_numerator, max_denominator,
-				&intp, &sout);
+				    &intp, &sout);
 
 	if (!clk_pll->frac_nega) {
 		rate_resolution = parent_rate / post_scaler / 16;
@@ -362,7 +392,7 @@ static int ambarella_pll_hdmi_set_rate(struct clk_hw *hw, unsigned long rate,
 		while (parent_rate * intp / sout > rate) {
 			rate_tmp -= rate_resolution;
 			rational_best_approximation(rate_tmp, parent_rate, max_numerator, max_denominator,
-						&intp, &sout);
+						    &intp, &sout);
 		}
 	}
 
@@ -391,7 +421,7 @@ static int ambarella_pll_hdmi_set_rate(struct clk_hw *hw, unsigned long rate,
 	}
 
 	ctrl_val.w = readl(clk_pll->ctrl_reg);
-	if(ctrl_val.s.frac_mode) {
+	if (ctrl_val.s.frac_mode) {
 		ctrl_val.s.force_reset = 1;
 		rct_writel_en(ctrl_val.w, clk_pll->ctrl_reg);
 	}
@@ -416,6 +446,9 @@ static int ambarella_pll_hdmi_set_rate(struct clk_hw *hw, unsigned long rate,
 
 	if (clk_pll->frac_mode) {
 		rate_tmp = ambarella_pll_hdmi_recalc_rate(hw, parent_rate);
+		if (rate_org >= 3000000000UL)
+			rate_tmp = rate_tmp / 2;
+
 		rate_tmp *= clk_pll->fix_divider * post_scaler;
 		if (rate_tmp <= rate)
 			diff = rate - rate_tmp;
@@ -435,9 +468,8 @@ static int ambarella_pll_hdmi_set_rate(struct clk_hw *hw, unsigned long rate,
 					frac_val.s.nega	= 1;
 					frac_val.s.frac	= 0x80000000 - dividend;
 				}
-			} else {
+			} else
 				frac_val.w = dividend;
-			}
 			writel(frac_val.w, clk_pll->frac_reg);
 
 			ctrl_val.s.frac_mode = 1;
@@ -448,12 +480,13 @@ static int ambarella_pll_hdmi_set_rate(struct clk_hw *hw, unsigned long rate,
 
 	/* check if result rate is precise or not */
 	rate_tmp = ambarella_pll_hdmi_recalc_rate(hw, parent_rate);
-	if(rate_tmp != 5940000000)
-		if (abs(rate_tmp - rate / clk_pll->fix_divider / post_scaler) > 10) {
-			pr_warn("%s: rate is not very precise: %ld, %ld\n",
-				clk_hw_get_name(hw), rate_tmp,
-				rate / clk_pll->fix_divider / post_scaler);
-		}
+	if (rate_org >= 3000000000UL)
+		rate_tmp = rate_tmp / 2;
+	if (abs(rate_tmp - rate / clk_pll->fix_divider / post_scaler) > 10) {
+		pr_warn("%s: rate is not very precise: %ld, %ld\n",
+			clk_hw_get_name(hw), rate_tmp,
+			rate / clk_pll->fix_divider / post_scaler);
+	}
 
 	return 0;
 }

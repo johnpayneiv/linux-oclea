@@ -147,8 +147,7 @@ struct ambeth_info {
 
 	u32				mdio_gpio: 1,
 					enhance: 1,
-					ext_ref_clk : 1,	/* only for RMII */
-					int_gtx_clk125 : 1,	/* only for GMII/RGMII */
+					second_ref_clk_50mhz : 1,
 					tx_clk_invert : 1,
 					phy_enabled : 1,
 					ipc_tx : 1,

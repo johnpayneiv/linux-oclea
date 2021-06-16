@@ -653,10 +653,12 @@ Optional properties:
   correctly in 400KHz.
 - amb,pwr-up-dly: specify the delay when power up and down. If it is not declared,
   the default value is 300ms. It's helpful for speeding up the system boot time.
-- amb,phy-timing: specify the fixed phy timing, including four u32 element, 1st
+- amb,phy-timing: specify the fixed phy timing, if the element number is three, the
+  1st element is for SD_read_latency_control register setting, 2nd and 3rd element is
+  for sd_delay_sel_L and sd_delay_sel_H settings; then if there is four u32 element, 1st
   element is for SD_read_latency_control register setting, 2nd and 3rd element is
-  for sd phyctrl 0 and phyctrl 1 (phy sel) setting, the last element is for phy sbc
-  setting.
+  for sd phyctrl 0(the most significant 16bit) and phyctrl 1 (phy sel) settings, the
+  last element is for phy sbc setting (the least significant 16bit).
 - amb,tuning-fixed-clk-freq: specifies the tuning option for using fixed clock, don't
   reduce clock frequecy. When visiting RPMB partition in kernel, this property must
   be set.
@@ -714,12 +716,10 @@ Optional properties:
 - amb,dump-rx: specifies to dump Rx buffer, for debug purpose.
 - amb,dump-rx-free: specifies to free buffer after dumped.
 - amb,dump-rx-all: specifies to dump all buffers without filter.
-- amb,int-gtx-clk125: should be specified if using internal 125MHz gclk_gtx,
-  take effect for GMII/RGMII only.
-- amb,ext-ref-clk: should be specified if using external ref_clk,
-  take effect for RMII only.
 - amb,tx-clk-invert: should be specified if inverting the Tx clk,
   take effect on all modes, including RMII, RGMII and etc.
+- amb,2nd-ref-clk-50mhz: should be specified if enet_2nd_ref_clk needs 50MHz,
+  by default it's 25MHz.
 - amb,enhance: specifies to use the enhance ethernet iff the chip supports.
 - amb,mdio-gpio: specifies to use GPIO to emulating MDIO bus.
 

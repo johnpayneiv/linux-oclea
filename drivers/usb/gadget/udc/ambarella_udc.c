@@ -1172,6 +1172,7 @@ static void udc_device_interrupt(struct ambarella_udc *udc, u32 int_value)
 		regmap_read(udc->scr_reg, AHBSP_USB_SIDEBAND_OFFSET, &regval);
 		connect = !!(regval & (1 << 26));
 
+		udc->vbus_status = connect;
 		udc->udc_is_enabled = 0;
 		ambarella_udc_enable(udc);
 		if (connect)  {

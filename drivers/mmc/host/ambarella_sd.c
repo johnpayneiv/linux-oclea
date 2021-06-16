@@ -101,7 +101,7 @@ struct ambarella_mmc_host {
 	int				invert_rx_clk;
 	int				invert_dll_clk;
 	u32				phy_timing[4];
-	bool				fixed_timing;
+	u32				timing_reg_num;
 	bool				auto_cmd12;
 	bool				force_v18;
 	bool				tuning_fixed_clk_freq;
@@ -269,6 +269,7 @@ static void ambarella_sd_switch_clk(struct ambarella_mmc_host *host, bool enable
 	udelay(10);
 }
 
+static u32 ambarella_sd_set_dll(struct ambarella_mmc_host *host, u32 sbc);
 static void ambarella_sd_reset_all(struct ambarella_mmc_host *host)
 {
 	u32 nis, eis;
@@ -314,6 +315,17 @@ static void ambarella_sd_reset_all(struct ambarella_mmc_host *host)
 		SD_EISEN_CMD_CRC_ERR | 	SD_EISEN_CMD_TMOUT_ERR;
 
 	ambarella_sd_enable_irq(host, (eis << 16) | nis);
+
+	if(host->timing_reg_num == 4) {
+		writel_relaxed(host->phy_timing[0], host->regbase + SD_LAT_CTRL_OFFSET);
+		regmap_field_write(host->phy_ctrl, host->phy_timing[1]);
+		regmap_field_write(host->phy_sel, host->phy_timing[2]);
+		ambarella_sd_set_dll(host, host->phy_timing[3]);
+	} else if(host->timing_reg_num == 3) {
+		writel_relaxed(host->phy_timing[0], host->regbase + SD_LAT_CTRL_OFFSET);
+		writel_relaxed(host->phy_timing[1], host->regbase + SD_DELAY_SEL_L);
+		writel_relaxed(host->phy_timing[2], host->regbase + SD_DELAY_SEL_H);
+	}
 }
 
 static void ambarella_sd_set_clk(struct mmc_host *mmc, u32 clock)
@@ -502,9 +514,9 @@ static void ambarella_sd_timer_timeout(struct timer_list *t)
 	struct mmc_request *mrq = host->mrq;
 	u32 dir;
 
-	dev_err(host->dev, "pending mrq: %s[%u]\n",
+	dev_err(host->dev, "pending mrq: %s[%u],arg=0x%x\n",
 			mrq ? mrq->data ? "data" : "cmd" : "",
-			mrq ? mrq->cmd->opcode : 9999);
+			mrq ? mrq->cmd->opcode : 9999, mrq->cmd->arg);
 
 	if (mrq) {
 		if (mrq->data) {
@@ -879,12 +891,8 @@ static int ambarella_sd_execute_tuning(struct mmc_host *mmc, u32 opcode)
 	tmp |= SD_HOST_HIGH_SPEED;
 	writeb_relaxed(tmp, host->regbase + SD_HOST_OFFSET);
 
-	if(host->fixed_timing) {
-		writel_relaxed(host->phy_timing[0], host->regbase + SD_LAT_CTRL_OFFSET);
-		regmap_field_write(host->phy_ctrl, host->phy_timing[1]);
-		ambarella_sd_set_dll(host, host->phy_timing[3]);
-		regmap_field_write(host->phy_sel, host->phy_timing[2]);
-		/* after set timing, should reset the controller */
+	if(host->timing_reg_num != 0) {
+		/* the fixed timing will be set in ambarella_sd_recovery */
 		ambarella_sd_recovery(host);
 		return 0;
 	}
@@ -1381,10 +1389,13 @@ static int ambarella_sd_of_parse(struct ambarella_mmc_host *host)
 	else
 		host->tuning_fixed_clk_freq = false;
 
-	if(of_property_read_u32_array(np, "amb,phy-timing", host->phy_timing, ARRAY_SIZE(host->phy_timing)))
-		host->fixed_timing = false;
+	host->timing_reg_num = of_property_count_u32_elems(np, "amb,phy-timing");
+	if(host->timing_reg_num == 4)
+		of_property_read_u32_array(np, "amb,phy-timing", host->phy_timing, 4);
+	else if(host->timing_reg_num == 3)
+		of_property_read_u32_array(np, "amb,phy-timing", host->phy_timing, 3);
 	else
-		host->fixed_timing = true;
+		host->timing_reg_num = 0;
 
 	if (of_property_read_bool(np, "amb,have-led"))
 		host->have_led = true;

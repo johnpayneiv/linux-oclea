@@ -395,35 +395,6 @@
 #define ENET_CTRL_REG			SCRATCHPAD_REG(0x10C)
 #endif
 
-
-#if (CHIP_REV == S2L) || (CHIP_REV == S3)
-#define ENET_CLK_SRC_SEL_VAL		(1 << 0)
-#define ENET_CLK_SRC_SEL_OFFSET		RCT_INVALID_OFFSET
-#define ENET_CLK_SRC_SEL_REG		RCT_REG(RCT_INVALID_OFFSET)
-
-#elif (CHIP_REV == S3L) || (CHIP_REV == S5L)
-#define ENET_CLK_SRC_SEL_VAL		(1 << 0)
-#define ENET_CLK_SRC_SEL_OFFSET		0x544
-#define ENET_CLK_SRC_SEL_REG		RCT_REG(0x544)
-
-#elif (CHIP_REV == S5) || (CHIP_REV == CV1) || (CHIP_REV == CV2) || \
-	(CHIP_REV == CV22) || (CHIP_REV == CV25) || (CHIP_REV == CV28) || \
-	(CHIP_REV == S6LM)
-#define ENET_CLK_SRC_SEL_VAL		(1 << 0)
-#define ENET_CLK_SRC_SEL_OFFSET		0x6B8
-#define ENET_CLK_SRC_SEL_REG		RCT_REG(0x6B8)
-
-#elif (CHIP_REV == CV2FS)
-#define ENET_CLK_SRC_SEL_VAL		ENET_CLK_SRC_SEL
-#define ENET_CLK_SRC_SEL_OFFSET		0x79C
-#define ENET_CLK_SRC_SEL_REG		RCT_REG(0x79C)
-
-#else
-#define ENET_CLK_SRC_SEL_VAL		ENET_CLK_SRC_SEL
-#define ENET_CLK_SRC_SEL_OFFSET		0x10C
-#define ENET_CLK_SRC_SEL_REG		SCRATCHPAD_REG(0x10C)
-
-#endif
 /* ==========================================================================*/
 
 #define SCALER_GTX_POST_OFFSET		0x2A8

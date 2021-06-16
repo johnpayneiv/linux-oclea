@@ -29,6 +29,8 @@
 #include <linux/of_irq.h>
 #include <linux/slab.h>
 #include <linux/syscore_ops.h>
+#include <linux/regmap.h>
+#include <linux/mfd/syscon.h>
 #include <linux/pinctrl/pinctrl.h>
 #include <linux/pinctrl/pinmux.h>
 #include <linux/pinctrl/pinconf.h>
@@ -42,7 +44,7 @@
 #define PIN_NAME_LENGTH			8
 #define SUFFIX_LENGTH			4
 
-#define GPIO_DS_OFFSET(b)		((b)<4 ? (b)*8 : 0x124 + ((b)-4) * 8)
+#define GPIO_DS_REL_OFFSET(b)		((b)<4 ? (b)*8 : 0x124 + ((b)-4) * 8)
 
 #define MUXIDS_TO_PINID(m)	((m) & 0xfff)
 #define MUXIDS_TO_ALT(m)	(((m) >> 12) & 0xf)
@@ -89,6 +91,8 @@ struct amb_pinctrl_soc_data {
 	void __iomem			*iomux_base;
 	void __iomem			*pad_base;
 	void __iomem			*ds_base;
+	struct regmap			*pad_regmap;
+	struct regmap			*ds_regmap;
 	unsigned int			bank_num;
 	unsigned long			used[BITS_TO_LONGS(GPIO_MAX_PIN_NUM)];
 
@@ -433,39 +437,59 @@ static int amb_pinconf_set(struct pinctrl_dev *pctldev, unsigned int pin,
 	for (i = 0; i < num_configs; i++) {
 		config = configs[i];
 		if (CFG_PULL_PRESENT(config)) {
-			reg = soc->pad_base + GPIO_PAD_PULL_DIR_OFFSET(bank);
-			val = readl_relaxed(reg);
-			val &= ~(0x1 << offset);
-			val |= CONF_TO_PULL_VAL(config) << offset;
-			writel_relaxed(val, reg);
+			if (soc->pad_base) {
+				reg = soc->pad_base + GPIO_PAD_PULL_DIR_REL_OFFSET(bank);
+				val = readl_relaxed(reg);
+				val &= ~(0x1 << offset);
+				val |= CONF_TO_PULL_VAL(config) << offset;
+				writel_relaxed(val, reg);
 
-			reg = soc->pad_base + GPIO_PAD_PULL_EN_OFFSET(bank);
-			val = readl_relaxed(reg);
-			if (CONF_TO_PULL_CLR(config))
-				writel_relaxed(val & ~(0x1 << offset), reg);
-			else
-				writel_relaxed(val | (0x1 << offset), reg);
+				reg = soc->pad_base + GPIO_PAD_PULL_EN_REL_OFFSET(bank);
+				val = readl_relaxed(reg);
+				if (CONF_TO_PULL_CLR(config))
+					writel_relaxed(val & ~(0x1 << offset), reg);
+				else
+					writel_relaxed(val | (0x1 << offset), reg);
+			} else if (soc->pad_regmap) {
+				regmap_update_bits(soc->pad_regmap,
+					GPIO_PAD_PULL_DIR_OFFSET(bank), 0x1 << offset,
+					CONF_TO_PULL_VAL(config) << offset);
+
+				regmap_update_bits(soc->pad_regmap,
+					GPIO_PAD_PULL_EN_OFFSET(bank), 0x1 << offset,
+					(CONF_TO_PULL_CLR(config) ? 0x0 : 0x1) << offset);
+			}
 		}
 
 		if (CFG_DS_PRESENT(config)) {
-			reg = soc->ds_base + GPIO_DS_OFFSET(bank);
-			val = readl_relaxed(reg);
-			writel_relaxed(val & ~(0x1 << offset), reg);
+			if (soc->ds_base) {
+				reg = soc->ds_base + GPIO_DS_REL_OFFSET(bank);
+				val = readl_relaxed(reg);
+				writel_relaxed(val & ~(0x1 << offset), reg);
 
-			reg = soc->ds_base + GPIO_DS_OFFSET(bank) + 4;
-			val = readl_relaxed(reg);
-			writel_relaxed(val & ~(0x1 << offset), reg);
+				reg = soc->ds_base + GPIO_DS_REL_OFFSET(bank) + 4;
+				val = readl_relaxed(reg);
+				writel_relaxed(val & ~(0x1 << offset), reg);
 
-			/* set bit1 of DS value to DS0 reg, and set bit0 of DS value to DS1 reg */
-			reg = soc->ds_base + GPIO_DS_OFFSET(bank);
-			val = readl_relaxed(reg);
-			val |= ((CONF_TO_DS_VAL(config) >> 1) & 0x1) << offset;
-			writel_relaxed(val, reg);
+				/* set bit1 of DS value to DS0 reg, and set bit0 of DS value to DS1 reg */
+				reg = soc->ds_base + GPIO_DS_REL_OFFSET(bank);
+				val = readl_relaxed(reg);
+				val |= ((CONF_TO_DS_VAL(config) >> 1) & 0x1) << offset;
+				writel_relaxed(val, reg);
 
-			reg = soc->ds_base + GPIO_DS_OFFSET(bank) + 4;
-			val = readl_relaxed(reg);
-			val |= (CONF_TO_DS_VAL(config) & 0x1) << offset;
-			writel_relaxed(val, reg);
+				reg = soc->ds_base + GPIO_DS_REL_OFFSET(bank) + 4;
+				val = readl_relaxed(reg);
+				val |= (CONF_TO_DS_VAL(config) & 0x1) << offset;
+				writel_relaxed(val, reg);
+			} else if (soc->ds_regmap) {
+				/* set bit1 of DS value to DS0 reg, and set bit0 of DS value to DS1 reg */
+				regmap_update_bits(soc->ds_regmap,
+					GPIO_DS0_OFFSET(bank), 0x1 << offset,
+					((CONF_TO_DS_VAL(config) >> 1) & 0x1) << offset);
+				regmap_update_bits(soc->ds_regmap,
+					GPIO_DS1_OFFSET(bank), 0x1 << offset,
+					(CONF_TO_DS_VAL(config) & 0x1) << offset);
+			}
 		}
 	}
 
@@ -485,25 +509,44 @@ static void amb_pinconf_dbg_show(struct pinctrl_dev *pctldev,
 {
 	struct amb_pinctrl_soc_data *soc;
 	void __iomem *reg;
+	u32 pull_en, pull_dir, ds0, ds1, drv_strength;
 	u32 bank, offset;
-	u32 pull_en, pull_dir, drv_strength;
 
 	soc = pinctrl_dev_get_drvdata(pctldev);
 	bank = PINID_TO_BANK(pin);
 	offset = PINID_TO_OFFSET(pin);
 
-	reg = soc->pad_base + GPIO_PAD_PULL_EN_OFFSET(bank);
-	pull_en = (readl_relaxed(reg) >> offset) & 0x1;
+	if (soc->pad_base) {
+		reg = soc->pad_base + GPIO_PAD_PULL_EN_REL_OFFSET(bank);
+		pull_en = (readl_relaxed(reg) >> offset) & 0x1;
 
-	reg = soc->pad_base + GPIO_PAD_PULL_DIR_OFFSET(bank);
-	pull_dir = (readl_relaxed(reg) >> offset) & 0x1;
+		reg = soc->pad_base + GPIO_PAD_PULL_DIR_REL_OFFSET(bank);
+		pull_dir = (readl_relaxed(reg) >> offset) & 0x1;
+	} else if (soc->pad_regmap) {
+		regmap_read(soc->pad_regmap, GPIO_PAD_PULL_EN_OFFSET(bank), &pull_en);
+		pull_en = (pull_en >> offset) & 0x1;
+
+		regmap_read(soc->pad_regmap, GPIO_PAD_PULL_DIR_OFFSET(bank), &pull_dir);
+		pull_dir = (pull_dir >> offset) & 0x1;
+	}
 
 	seq_printf(s, " pull: %s, ", pull_en ? pull_dir ? "up" : "down" : "disable");
 
-	reg = soc->ds_base + GPIO_DS_OFFSET(bank);
-	drv_strength = ((readl_relaxed(reg) >> offset) & 0x1) << 1;
-	reg = soc->ds_base + GPIO_DS_OFFSET(bank) + 4;
-	drv_strength |= (readl_relaxed(reg) >> offset) & 0x1;
+	if (soc->ds_base) {
+		reg = soc->ds_base + GPIO_DS_REL_OFFSET(bank);
+		ds0 = (readl_relaxed(reg) >> offset) & 0x1;
+
+		reg = soc->ds_base + GPIO_DS_REL_OFFSET(bank) + 4;
+		ds1 = (readl_relaxed(reg) >> offset) & 0x1;
+	} else if (soc->ds_regmap) {
+		regmap_read(soc->ds_regmap, GPIO_DS0_OFFSET(bank), &ds0);
+		ds0 = (ds0 >> offset) & 0x1;
+
+		regmap_read(soc->ds_regmap, GPIO_DS1_OFFSET(bank), &ds1);
+		ds1 = (ds1 >> offset) & 0x1;
+	}
+
+	drv_strength = (ds0 << 1) | ds1;
 
 	seq_printf(s, "drive-strength: %s",
 		drv_strength == 3 ? "12mA" : drv_strength == 2 ? "8mA" :
@@ -725,7 +768,7 @@ static int amb_pinctrl_register(struct amb_pinctrl_soc_data *soc)
 static int amb_pinctrl_probe(struct platform_device *pdev)
 {
 	struct amb_pinctrl_soc_data *soc;
-	struct device_node *child;
+	struct device_node *np, *child;
 	struct resource *res;
 	int i, rval;
 
@@ -735,9 +778,10 @@ static int amb_pinctrl_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 	soc->dev = &pdev->dev;
+	np = pdev->dev.of_node;
 	amb_pinctrl_soc = soc;
 
-	child = of_get_child_by_name(pdev->dev.of_node, "gpio");
+	child = of_get_child_by_name(np, "gpio");
 	if (!child) {
 		dev_err(&pdev->dev, "no gpio child node\n");
 		return -ENODEV;
@@ -765,13 +809,15 @@ static int amb_pinctrl_probe(struct platform_device *pdev)
 	}
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "iomux");
-	if (res != NULL) {
-		soc->iomux_base = devm_ioremap(&pdev->dev,
-						res->start, resource_size(res));
-		if (soc->iomux_base == 0) {
-			dev_err(&pdev->dev, "iomux devm_ioremap() failed\n");
-			return -ENOMEM;
-		}
+	if (res == NULL) {
+		dev_err(&pdev->dev, "no mem resource for iomux!\n");
+		return -ENXIO;
+	}
+
+	soc->iomux_base = devm_ioremap(&pdev->dev, res->start, resource_size(res));
+	if (soc->iomux_base == 0) {
+		dev_err(&pdev->dev, "iomux devm_ioremap() failed\n");
+		return -ENOMEM;
 	}
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "pad");
@@ -782,6 +828,12 @@ static int amb_pinctrl_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "pad devm_ioremap() failed\n");
 			return -ENOMEM;
 		}
+	} else {
+		soc->pad_regmap = syscon_regmap_lookup_by_phandle(np, "amb,pull-regmap");
+		if (IS_ERR(soc->pad_regmap)) {
+			dev_err(&pdev->dev, "no pull regmap!\n");
+			return PTR_ERR(soc->pad_regmap);
+		}
 	}
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "ds");
@@ -791,6 +843,12 @@ static int amb_pinctrl_probe(struct platform_device *pdev)
 		if (soc->ds_base == 0) {
 			dev_err(&pdev->dev, "ds devm_ioremap() failed\n");
 			return -ENOMEM;
+		}
+	} else {
+		soc->ds_regmap = syscon_regmap_lookup_by_phandle(np, "amb,ds-regmap");
+		if (IS_ERR(soc->ds_regmap)) {
+			dev_err(&pdev->dev, "no ds regmap!\n");
+			return PTR_ERR(soc->ds_regmap);
 		}
 	}
 
@@ -820,30 +878,36 @@ static int amb_pinctrl_suspend(void)
 	void __iomem *reg;
 	u32 i, j;
 
-	if (soc->pad_base) {
-		for (i = 0; i < soc->bank_num; i++) {
-			reg = soc->pad_base + GPIO_PAD_PULL_EN_OFFSET(i);
+	for (i = 0; i < soc->bank_num; i++) {
+		if (soc->pad_base) {
+			reg = soc->pad_base + GPIO_PAD_PULL_EN_REL_OFFSET(i);
 			amb_pull_pm_reg[0][i] = readl_relaxed(reg);
-			reg = soc->pad_base + GPIO_PAD_PULL_DIR_OFFSET(i);
+			reg = soc->pad_base + GPIO_PAD_PULL_DIR_REL_OFFSET(i);
 			amb_pull_pm_reg[1][i] = readl_relaxed(reg);
+		} else if (soc->pad_regmap) {
+			regmap_read(soc->pad_regmap,
+				GPIO_PAD_PULL_EN_OFFSET(i), &amb_pull_pm_reg[0][i]);
+			regmap_read(soc->pad_regmap,
+				GPIO_PAD_PULL_DIR_OFFSET(i), &amb_pull_pm_reg[1][i]);
 		}
 	}
 
-	if (soc->ds_base) {
-		for (i = 0; i < soc->bank_num; i++) {
-			reg = soc->ds_base + GPIO_DS_OFFSET(i);
+	for (i = 0; i < soc->bank_num; i++) {
+		if (soc->ds_base) {
+			reg = soc->ds_base + GPIO_DS_REL_OFFSET(i);
 			amb_ds_pm_reg[i][0] = readl_relaxed(reg);
-			reg = soc->ds_base + GPIO_DS_OFFSET(i) + 4;
+			reg = soc->ds_base + GPIO_DS_REL_OFFSET(i) + 4;
 			amb_ds_pm_reg[i][1] = readl_relaxed(reg);
+		} else if (soc->ds_regmap) {
+			regmap_read(soc->ds_regmap, GPIO_DS0_OFFSET(i), &amb_ds_pm_reg[i][0]);
+			regmap_read(soc->ds_regmap, GPIO_DS1_OFFSET(i), &amb_ds_pm_reg[i][1]);
 		}
 	}
 
-	if (soc->iomux_base) {
-		for (i = 0; i < soc->bank_num; i++) {
-			for (j = 0; j < 3; j++) {
-				reg = soc->iomux_base + IOMUX_REG_OFFSET(i, j);
-				amb_iomux_pm_reg[i][j] = readl_relaxed(reg);
-			}
+	for (i = 0; i < soc->bank_num; i++) {
+		for (j = 0; j < 3; j++) {
+			reg = soc->iomux_base + IOMUX_REG_OFFSET(i, j);
+			amb_iomux_pm_reg[i][j] = readl_relaxed(reg);
 		}
 	}
 
@@ -856,34 +920,42 @@ static void amb_pinctrl_resume(void)
 	void __iomem *reg;
 	u32 i, j;
 
-	if (soc->pad_base) {
-		for (i = 0; i < soc->bank_num; i++) {
-			reg = soc->pad_base + GPIO_PAD_PULL_EN_OFFSET(i);
+	for (i = 0; i < soc->bank_num; i++) {
+		if (soc->pad_base) {
+			reg = soc->pad_base + GPIO_PAD_PULL_EN_REL_OFFSET(i);
 			writel_relaxed(amb_pull_pm_reg[0][i], reg);
-			reg = soc->pad_base + GPIO_PAD_PULL_DIR_OFFSET(i);
+			reg = soc->pad_base + GPIO_PAD_PULL_DIR_REL_OFFSET(i);
 			writel_relaxed(amb_pull_pm_reg[1][i], reg);
+		} else if (soc->pad_regmap) {
+			regmap_write(soc->pad_regmap,
+				GPIO_PAD_PULL_EN_OFFSET(i), amb_pull_pm_reg[0][i]);
+			regmap_write(soc->pad_regmap,
+				GPIO_PAD_PULL_DIR_OFFSET(i), amb_pull_pm_reg[1][i]);
 		}
 	}
 
-	if (soc->ds_base) {
-		for (i = 0; i < soc->bank_num; i++) {
-			reg = soc->ds_base + GPIO_DS_OFFSET(i);
+	for (i = 0; i < soc->bank_num; i++) {
+		if (soc->ds_base) {
+			reg = soc->ds_base + GPIO_DS_REL_OFFSET(i);
 			writel_relaxed(amb_ds_pm_reg[i][0], reg);
-			reg = soc->ds_base + GPIO_DS_OFFSET(i) + 4;
+			reg = soc->ds_base + GPIO_DS_REL_OFFSET(i) + 4;
 			writel_relaxed(amb_ds_pm_reg[i][1], reg);
+		} else if (soc->ds_regmap) {
+			regmap_write(soc->ds_regmap,
+				GPIO_DS0_OFFSET(i), amb_ds_pm_reg[i][0]);
+			regmap_write(soc->ds_regmap,
+				GPIO_DS1_OFFSET(i), amb_ds_pm_reg[i][1]);
 		}
 	}
 
-	if (soc->iomux_base) {
-		for (i = 0; i < soc->bank_num; i++) {
-			for (j = 0; j < 3; j++) {
-				reg = soc->iomux_base + IOMUX_REG_OFFSET(i, j);
-				writel_relaxed(amb_iomux_pm_reg[i][j], reg);
-			}
+	for (i = 0; i < soc->bank_num; i++) {
+		for (j = 0; j < 3; j++) {
+			reg = soc->iomux_base + IOMUX_REG_OFFSET(i, j);
+			writel_relaxed(amb_iomux_pm_reg[i][j], reg);
 		}
-		writel_relaxed(0x1, soc->iomux_base + IOMUX_CTRL_SET_OFFSET);
-		writel_relaxed(0x0, soc->iomux_base + IOMUX_CTRL_SET_OFFSET);
 	}
+	writel_relaxed(0x1, soc->iomux_base + IOMUX_CTRL_SET_OFFSET);
+	writel_relaxed(0x0, soc->iomux_base + IOMUX_CTRL_SET_OFFSET);
 }
 
 static struct syscore_ops amb_pinctrl_syscore_ops = {
