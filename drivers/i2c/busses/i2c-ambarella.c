@@ -391,7 +391,7 @@ ambarella_i2c_check_ack_enter:
 			goto ambarella_i2c_check_ack_exit;
 
 		if (retry_counter--) {
-			udelay(100);
+			udelay(200);
 			*pack_control = readl_relaxed(pinfo->regbase + IDC_CTRL_OFFSET);
 			goto ambarella_i2c_check_ack_enter;
 		}
@@ -427,7 +427,7 @@ static irqreturn_t ambarella_i2c_irq(int irqno, void *dev_id)
 	switch (pinfo->state) {
 	case AMBA_I2C_STATE_START:
 		if (ambarella_i2c_check_ack(pinfo, &control_reg,
-			1) == IDC_CTRL_ACK) {
+			5) == IDC_CTRL_ACK) {
 			if (pinfo->msgs->flags & I2C_M_RD) {
 				if (pinfo->msgs->len == 1)
 					ack_control |= IDC_CTRL_ACK;
@@ -484,7 +484,7 @@ amba_i2c_irq_write:
 		break;
 	case AMBA_I2C_STATE_WRITE_WAIT_ACK:
 		if (ambarella_i2c_check_ack(pinfo, &control_reg,
-			1) == IDC_CTRL_ACK) {
+			5) == IDC_CTRL_ACK) {
 			pinfo->state = AMBA_I2C_STATE_WRITE;
 			pinfo->msg_index++;
 
@@ -609,7 +609,7 @@ static int ambarella_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg *msgs,
 		if (hw_state != AMBA_I2C_HW_STATE_IDLE)
 			dev_dbg(pinfo->dev, "Xfer exits with non-idle hw state %d.\n", hw_state);
 
-		if (timeout <= 0) {
+		if (!timeout) {
 			pinfo->state = AMBA_I2C_STATE_NO_ACK;
 		}
 		dev_dbg(pinfo->dev, "%ld jiffies left.\n", timeout);
@@ -624,7 +624,11 @@ static int ambarella_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg *msgs,
 
 	if (errorCode) {
 		if (pinfo->state == AMBA_I2C_STATE_NO_ACK) {
-			dev_err(pinfo->dev,
+			/*
+			 * Teknique change: This is spammy, so change
+			 * from dev_err to dev_dbg.
+			 */
+			dev_dbg(pinfo->dev,
 				"No ACK from address 0x%x, %d:%d!\n",
 				pinfo->msg_addr, pinfo->msg_num,
 				pinfo->msg_index);

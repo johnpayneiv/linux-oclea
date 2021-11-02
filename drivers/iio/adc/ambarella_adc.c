@@ -891,6 +891,7 @@ static int ambarella_adc_probe(struct platform_device *pdev)
 	int rval;
 
 	indio_dev = devm_iio_device_alloc(&pdev->dev, sizeof(struct ambarella_adc));
+	dev_set_name(&indio_dev->dev, "iio:ambarella_adc");
 	if (!indio_dev) {
 		dev_err(&pdev->dev, "failed to allocate iio device\n");
 		return -ENOMEM;

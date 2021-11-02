@@ -68,6 +68,7 @@ struct ak4954_priv {
 	int onDrc;
 	int onStereo;
 	int mic;
+	int digital_mic;
 };
 
 /*
@@ -796,7 +797,7 @@ static const struct snd_soc_dapm_route ak4954_intercon[] = {
 	{"HPR", NULL, "HPR Amp"},
 
 	{"SPKLO Mixer", "DACSL", "DAC"},
-	{"SPK AmNULLp", NULL, "SPKLO Mixer"},
+	{"SPK Amp", NULL, "SPKLO Mixer"},
 	{"Line Amp", NULL, "SPKLO Mixer"},
 	{"SPKLO MUX", "Speaker", "SPK Amp"},
 	{"SPKLO MUX", "Line", "Line Amp"},
@@ -1103,6 +1104,21 @@ static int ak4954_probe(struct snd_soc_component *component)
 
 	akdbgprt("\t[AK4954] %s(%d)\n",__FUNCTION__,__LINE__);
 
+	if (ak4954->rst_pin > 0 ) {
+		akdbgprt("\t[AK4954] %s(%d) reset gpio %d \n",__FUNCTION__,__LINE__,ak4951->rst_pin);
+		ret = devm_gpio_request(component->dev, ak4954->rst_pin, "ak4954 reset");
+		if (ret < 0){
+			dev_err(component->dev, "Failed to request rst_pin: %d\n", ret);
+			return ret;
+		}
+	}
+	/* Reset AK4954 codec */
+	if ( ak4954->rst_pin > 0) {
+		gpio_direction_output(ak4954->rst_pin, ak4954->rst_active);
+		msleep(10);
+		gpio_direction_output(ak4954->rst_pin, !ak4954->rst_active);
+	}
+
 	snd_soc_component_write(component, AK4954_00_POWER_MANAGEMENT1, 0x00);
 	snd_soc_component_write(component, AK4954_00_POWER_MANAGEMENT1, 0x00);
 
@@ -1119,7 +1135,14 @@ static int ak4954_probe(struct snd_soc_component *component)
 	/*Enable LIN2*/
 	snd_soc_component_update_bits(component,AK4954_02_SIGNAL_SELECT1,0x18,0x08);//MPWR1
 	snd_soc_component_update_bits(component,AK4954_03_SIGNAL_SELECT2,0x0f,0x05);// LIN2 RIN2
-	snd_soc_component_update_bits(component,AK4954_08_DIGITL_MIC,0x01,0x00);//AMIC
+	if (ak4954->digital_mic)
+	{
+	    snd_soc_component_update_bits(component,AK4954_08_DIGITL_MIC,0x09,0x09);//DMIC
+	}
+	else
+	{
+	    snd_soc_component_update_bits(component,AK4954_08_DIGITL_MIC,0x09,0x00);//AMIC
+	}
 	snd_soc_component_update_bits(component,AK4954_1D_DIGITAL_FILTER_MODE,0x02,0x02);//ADC output
 	snd_soc_component_update_bits(component,AK4954_1D_DIGITAL_FILTER_MODE,0x01,0x01);//ALC output
 	snd_soc_component_update_bits(component,AK4954_02_SIGNAL_SELECT1,0x07,0x3);//Mic Gain
@@ -1208,7 +1231,7 @@ static int ak4954_i2c_probe(struct i2c_client *i2c,
 
 	ak4954->rst_pin = rst_pin;
 	ak4954->rst_active = !!(flags & OF_GPIO_ACTIVE_LOW);
-
+	ak4954->digital_mic = !!of_find_property(np, "amb,dmic", NULL);
 	i2c_set_clientdata(i2c, ak4954);
 	regmap = devm_regmap_init_i2c(i2c, &ak4954_regmap);
 	if (IS_ERR(regmap)) {

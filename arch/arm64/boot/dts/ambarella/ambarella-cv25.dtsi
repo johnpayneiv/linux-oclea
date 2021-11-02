@@ -1383,14 +1383,18 @@
 			compatible = "ambarella,fb";
 			reg = <0>;
 			amb,vout-id = <0>;
-			amb,format = "rgb565";
+			amb,format = "argb1555";
+			amb,max-width = <960>;
+			amb,max-height = <540>;
 		};
 
 		framebuffer1: framebuffer@1 {
 			compatible = "ambarella,fb";
 			reg = <1>;
 			amb,vout-id = <1>;
-			amb,format = "rgb565";
+			amb,format = "argb1555";
+			amb,max-width = <960>;
+			amb,max-height = <540>;
 		};
 	};
 

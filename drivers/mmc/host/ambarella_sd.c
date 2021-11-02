@@ -107,6 +107,7 @@ struct ambarella_mmc_host {
 	bool				set_hs_bit;
 	bool				auto_cmd12;
 	bool				force_v18;
+	bool				sdio_v3_lv_enable;
 	bool				tuning_fixed_clk_freq;
 	bool				have_led;
 
@@ -1075,7 +1076,7 @@ retry_dll_clk:
 	tmp = ((((best_s + best_e) / 2) >> 5) << 1) | SD_PHY_SBC_DEFAULT_VALUE;
 	vfine = ambarella_sd_set_dll(host, tmp);
 
-	if((best_s >> 5) + 2 <= (best_e >> 5)){
+	if((best_s >> 5) + 2 >= (best_e >> 5)){
 		/* start and end cross at least one full 32 length range */
 		best_s = 0;
 		best_e = 31;
@@ -1433,6 +1434,7 @@ static int ambarella_sd_of_parse(struct ambarella_mmc_host *host)
 	host->auto_cmd12 = of_property_read_bool(np, "amb,auto-cmd12");
 	host->force_v18 = of_property_read_bool(np, "amb,sd-force-1_8v");
 	host->set_hs_bit = of_property_read_bool(np, "amb,sd-hs-bit");
+	host->sdio_v3_lv_enable = of_property_read_bool(np, "amb,sdio-v3-lv-enable");
 
 	/* old style of sd device tree defines slot subnode, these codes are
 	 * just for compatibility. Note: we should remove this workaroud when
@@ -1473,6 +1475,12 @@ static int ambarella_sd_of_parse(struct ambarella_mmc_host *host)
 
 	if (gpio_is_valid(host->v18_gpio) || host->force_v18) {
 		mmc->ocr_avail |= MMC_VDD_165_195;
+
+		if (host->sdio_v3_lv_enable) {
+			// SDIO V3.0 only specifies flags for 2.00V & above, so to correctly init
+			// SDIO V3 wifi @ 1.8V we need to add the 200_210 range
+			mmc->ocr_avail |= MMC_VDD_20_21;
+		}
 
 		mmc->caps |= MMC_CAP_UHS_SDR12 | MMC_CAP_UHS_SDR25 |
 			MMC_CAP_UHS_SDR50 | MMC_CAP_UHS_SDR104;
