@@ -215,6 +215,7 @@ static unsigned long ambarella_pll_recalc_rate(struct clk_hw *hw, unsigned long 
 	struct regmap *map = clk_pll->pll_regmap;
 	u32 *reg = clk_pll->reg_offset;
 	u32 pre_scaler, post_scaler, intp, sdiv, sout;
+	u32 ctrl2_8, ctrl2_9, ctrl2_11, ctrl2_12;
 	u64 dividend, divider, frac;
 	unsigned long rate_ref;
 	union ctrl_reg_u ctrl_val;
@@ -265,6 +266,11 @@ static unsigned long ambarella_pll_recalc_rate(struct clk_hw *hw, unsigned long 
 
 	rate_ref = (ctrl2_val.s.fsdiv == 4) ? parent_rate * 2 : parent_rate;
 
+	ctrl2_12 = ((ctrl2_val.w >> 12) & 0x1);
+	ctrl2_11 = ((ctrl2_val.w >> 11) & 0x1) + 1;
+	ctrl2_9 = ((ctrl2_val.w >> 9) & 0x1) + 1;
+	ctrl2_8 = ((ctrl2_val.w >> 8) & 0x1) + 1;
+
 	intp = ctrl_val.s.intp + 1;
 	sdiv = ctrl_val.s.sdiv + 1;
 	sout = ctrl_val.s.sout + 1;
@@ -272,6 +278,9 @@ static unsigned long ambarella_pll_recalc_rate(struct clk_hw *hw, unsigned long 
 	dividend = rate_ref;
 	dividend *= (u64)intp;
 	dividend *= (u64)sdiv;
+	dividend *= (u64)ctrl2_8;
+	dividend *= (u64)ctrl2_9;
+
 	if (ctrl_val.s.frac_mode) {
 		if (clk_pll->frac_nega) {
 			if (frac_val.s.nega) {
@@ -294,7 +303,10 @@ static unsigned long ambarella_pll_recalc_rate(struct clk_hw *hw, unsigned long 
 		}
 	}
 
-	divider = pre_scaler * sout * post_scaler * clk_pll->fix_divider;
+	if (ctrl2_12)
+		divider = clk_pll->fix_divider;
+	else
+		divider = pre_scaler * sout * ctrl2_8 * ctrl2_11 * post_scaler * clk_pll->fix_divider;
 	BUG_ON(divider == 0);
 
 	do_div(dividend, divider);

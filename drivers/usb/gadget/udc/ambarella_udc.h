@@ -165,7 +165,7 @@ struct ambarella_udc {
 	u16				cur_intf;
 	u16				cur_alt;
 
-	unsigned 			auto_ack_0_pkt : 1,
+	unsigned			auto_ack_0_pkt : 1,
 					remote_wakeup_en  : 1,
 					host_suspended : 1,
 					sys_suspended : 1,
@@ -177,6 +177,7 @@ struct ambarella_udc {
 	u32				dma_fix;
 	struct tasklet_struct		disconnect_tasklet;
 	int				tx_fifosize;
+	int				bulk_fifo_factor;
 };
 
 /* Function Declaration  */

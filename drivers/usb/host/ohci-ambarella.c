@@ -75,7 +75,7 @@ static const struct hc_driver ohci_ambarella_hc_driver = {
 	 * generic hardware linkage
 	 */
 	.irq =			ohci_irq,
-	.flags =		HCD_USB11 | HCD_MEMORY,
+	.flags =		HCD_USB11 | HCD_DMA | HCD_MEMORY,
 
 	/*
 	 * basic lifecycle operations

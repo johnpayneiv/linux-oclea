@@ -409,7 +409,7 @@ config USB_OHCI_HCD
 if USB_OHCI_HCD
 
 config USB_OHCI_AMBARELLA
-	tristate "Ambarella OHCI support"
+	bool "Ambarella OHCI support"
 	depends on ARCH_AMBARELLA
 	---help---
 	  This driver enables support for OHCI found in Ambarella SoCs.

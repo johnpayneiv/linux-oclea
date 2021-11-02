@@ -1032,7 +1032,7 @@
 			interrupts = <0 83 0x4>;
 			#dma-cells = <1>;
 			dma-channels = <8>;
-			dma-requests = <23>;		/* request0 is reserved */
+			dma-requests = <25>;		/* request0 is reserved */
 		};
 
 		dma1: dma@e0021000 {
@@ -1041,7 +1041,7 @@
 			interrupts = <0 84 0x4>;
 			#dma-cells = <1>;
 			dma-channels = <8>;
-			dma-requests = <23>;		/* request0 is reserved */
+			dma-requests = <25>;		/* request0 is reserved */
 		};
 
 		gdma: gdma@e000b000 {
@@ -1056,7 +1056,7 @@
 			reg = <0xe001c000 0x1000>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&i2s0_pins>;
-			clocks = <&gclk_audio2>;
+			clocks = <&gclk_audio>;
 			amb,i2s-channels = <2>;
 			amb,default-mclk = <12288000>;
 			dmas = <&dma0 21>, <&dma0 22>;
@@ -1071,7 +1071,7 @@
 			reg = <0xe001d000 0x1000>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&i2s1_pins_a>;
-			clocks = <&gclk_audio>;
+			clocks = <&gclk_audio2>;
 			amb,i2s-channels = <2>;
 			amb,default-mclk = <12288000>;
 			dmas = <&dma0 23>, <&dma0 24>;
@@ -1328,6 +1328,9 @@
 		compatible = "ambarella,iav";
 		#address-cells = <1>;
 		#size-cells = <1>;
+		reg-names = "vout_base";
+		reg = <0xe0008000 0x1000>;
+		ranges = <0x0 0xe0008000 0x1000>;
 
 		hwtimer {
 			compatible = "ambarella,hwtimer";
@@ -1370,6 +1373,8 @@
 		voutc0 {
 			compatible = "ambarella,voutc";
 			output-type = "cvbs", "mipi_dsi", "fpd_link", "mipi_csi";
+			reg-names = "display", "mipi_dsi_cmd";
+			reg = <0x300 0x200>, <0xb00 0x18>;
 			interrupts = <0 89 0x1>;
 			interrupt-names = "vout0";
 			rct-regmap = <&rct_syscon>;

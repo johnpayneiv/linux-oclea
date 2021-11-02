@@ -1061,6 +1061,8 @@ Optional properties:
 - amb,msr-used: use Modem Status Register, should be specified for non-UART0.
 - amb,less-reg: registers like FIFO status register are NOT provided, should be
   specified for A5S.
+- amb,ignore-fe: ignore frame error report for CV2/CV22/CV25/S6LM because it's
+  checked too strict so that normal stop may be treated as frame error.
 - amb,txdma-used: use dma for transmitting, should be specified if uart hardware
   supports dma mode.
 - amb,rxdma-used: use dma for receiving, should be specified if uart hardware

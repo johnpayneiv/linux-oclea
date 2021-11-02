@@ -168,6 +168,7 @@
 			pinctrl-names = "default";
 			pinctrl-0 = <&uart0_pins>;
 			clocks = <&gclk_uart0>;
+			amb,ignore-fe;
 			status = "ok";
 		};
 
@@ -1122,6 +1123,7 @@
 			pinctrl-0 = <&uart1_pins &uart1_flow_pins>;
 			clocks = <&gclk_uart1>;
 			amb,msr-used;	/* use Modem Status Register */
+			amb,ignore-fe;
 			amb,txdma-used;
 			amb,rxdma-used;
 			dmas = <&dma0 9>, <&dma0 10>;
@@ -1137,6 +1139,7 @@
 			pinctrl-0 = <&uart2_pins &uart2_flow_pins>;
 			clocks = <&gclk_uart2>;
 			amb,msr-used;	/* use Modem Status Register */
+			amb,ignore-fe;
 			amb,txdma-used;
 			amb,rxdma-used;
 			dmas = <&dma1 11>, <&dma1 12>;
@@ -1152,6 +1155,7 @@
 			pinctrl-0 = <&uart3_pins_b &uart3_flow_pins_b>;
 			clocks = <&gclk_uart3>;
 			amb,msr-used;	/* use Modem Status Register */
+			amb,ignore-fe;
 			amb,txdma-used;
 			amb,rxdma-used;
 			dmas = <&dma1 13>, <&dma1 14>;
@@ -1167,6 +1171,7 @@
 			pinctrl-0 = <&uart4_pins_a &uart4_flow_pins_a>;
 			clocks = <&gclk_uart4>;
 			amb,msr-used;	/* use Modem Status Register */
+			amb,ignore-fe;
 			amb,txdma-used;
 			amb,rxdma-used;
 			dmas = <&dma1 15>, <&dma1 16>;
@@ -1259,6 +1264,9 @@
 		compatible = "ambarella,iav";
 		#address-cells = <1>;
 		#size-cells = <1>;
+		reg-names = "vout_base";
+		reg = <0xe0008000 0x1000>;
+		ranges = <0x0 0xe0008000 0x1000>;
 
 		hwtimer {
 			compatible = "ambarella,hwtimer";
@@ -1303,6 +1311,8 @@
 		voutc0 {
 			compatible = "ambarella,voutc";
 			output-type = "digital";
+			reg-names = "display";
+			reg = <0x300 0x200>;
 			interrupts = <0 89 0x1>;
 			interrupt-names = "vout0";
 			rct-regmap = <&rct_syscon>;
@@ -1315,6 +1325,8 @@
 		voutc1 {
 			compatible = "ambarella,voutc";
 			output-type = "hdmi", "cvbs";
+			reg-names = "display";
+			reg = <0x600 0x200>;
 			interrupts = <0 88 0x1>;
 			interrupt-names = "vout1";
 			rct-regmap = <&rct_syscon>;

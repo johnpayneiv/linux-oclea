@@ -81,6 +81,7 @@ struct ambarella_uart_port {
 	int rx_bytes_requested;
 	bool tx_in_progress;
 	bool rx_in_progress;
+	bool ignore_fe;
 #ifdef CONFIG_PM
 	u32 clk_rate;
 #endif
@@ -223,8 +224,11 @@ static void serial_ambarella_hw_setup(struct uart_port *port)
 static inline void serial_ambarella_receive_chars(struct uart_port *port,
 	u32 tmo)
 {
+	struct ambarella_uart_port *amb_port;
 	u32 ch, flag, ls;
 	int max_count;
+
+	amb_port = (struct ambarella_uart_port *)(port->private_data);
 
 	ls = readl_relaxed(port->membase + UART_LS_OFFSET);
 	max_count = port->fifosize;
@@ -240,7 +244,7 @@ static inline void serial_ambarella_receive_chars(struct uart_port *port,
 				if (uart_handle_break(port))
 					goto ignore_char;
 			}
-			if (ls & UART_LS_FE)
+			if ((ls & UART_LS_FE) && !amb_port->ignore_fe)
 				port->icount.frame++;
 			if (ls & UART_LS_PE)
 				port->icount.parity++;
@@ -251,7 +255,7 @@ static inline void serial_ambarella_receive_chars(struct uart_port *port,
 
 			if (ls & UART_LS_BI)
 				flag = TTY_BREAK;
-			else if (ls & UART_LS_FE)
+			else if (ls & UART_LS_FE && !amb_port->ignore_fe)
 				flag = TTY_FRAME;
 			else if (ls & UART_LS_PE)
 				flag = TTY_PARITY;
@@ -362,7 +366,7 @@ static char serial_ambarella_decode_rx_error(struct ambarella_uart_port *amb_por
 			flag |= TTY_PARITY;
 			amb_port->port.icount.parity++;
 		}
-		if (lsr & UART_LSR_FE) {
+		if ((lsr & UART_LSR_FE) && !amb_port->ignore_fe) {
 			flag |= TTY_FRAME;
 			amb_port->port.icount.frame++;
 		}
@@ -592,11 +596,9 @@ static void serial_ambarella_copy_rx_to_tty(struct ambarella_uart_port *amb_port
 	dma_sync_single_for_cpu(amb_port->port.dev, amb_port->rx_dma_buf_phys,
 		AMBA_UART_RX_DMA_BUFFER_SIZE, DMA_FROM_DEVICE);
 	copied = tty_insert_flip_string(tty, amb_port->rx_dma_buf_virt, count);
-	if (copied != count) {
-		dev_err_once(amb_port->port.dev, "%s:Unable to push data ret %d_bytes %d\n",
-			__func__,copied, count);
-		WARN_ON_ONCE(1);
-	}
+	if (copied != count)
+		printk_ratelimited(KERN_WARNING "%s:Unable to push data ret %d_bytes %d\n",
+			__func__, copied, count);
 }
 
 static void serial_ambarella_rx_dma_complete(void *args)
@@ -1006,10 +1008,10 @@ static void serial_ambarella_set_termios(struct uart_port *port,
 
 	if ((termios->c_cflag & CRTSCTS) == 0) {
 		amb_port->mcr &= ~UART_MC_AFCE;
-		port->status &= ~(UPSTAT_AUTOCTS | UPSTAT_AUTORTS);
+		port->status &= ~UPSTAT_AUTOCTS;
 	} else {
 		amb_port->mcr |= UART_MC_AFCE;
-		port->status |= UPSTAT_AUTOCTS | UPSTAT_AUTORTS;
+		port->status |= UPSTAT_AUTOCTS;
 	}
 
 	writel_relaxed(UART_LC_DLAB, port->membase + UART_LC_OFFSET);
@@ -1379,6 +1381,13 @@ static int serial_ambarella_probe(struct platform_device *pdev)
 		dev_info(&pdev->dev,"Serial[%d] use rxdma\n", id);
 	} else {
 		amb_port->rxdma_used = 0;
+	}
+	/* check if ignore frame error */
+	if (of_find_property(pdev->dev.of_node, "amb,ignore-fe", NULL)) {
+		amb_port->ignore_fe = 1;
+		dev_info(&pdev->dev,"Serial[%d] ignores FE\n", id);
+	} else {
+		amb_port->ignore_fe = 0;
 	}
 
 	amb_port->port.dev = &pdev->dev;

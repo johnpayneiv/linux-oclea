@@ -246,28 +246,6 @@ static void ambarella_spi_start_transfer(struct ambarella_spi *bus)
 	}
 
 	if (bus->dma_used) {
-		/* TX DMA */
-		tx_cfg.dst_addr			= bus->phys + SPI_DR_OFFSET;
-		if (spi->bits_per_word <= 8) {
-			tx_cfg.dst_addr_width	= DMA_SLAVE_BUSWIDTH_1_BYTE;
-		} else {
-			tx_cfg.dst_addr_width	= DMA_SLAVE_BUSWIDTH_2_BYTES;
-		}
-		tx_cfg.dst_maxburst		= 8;
-		tx_cfg.direction		= DMA_MEM_TO_DEV;
-
-		BUG_ON(dmaengine_slave_config(bus->tx_dma_chan, &tx_cfg) < 0);
-
-		txd = dmaengine_prep_slave_single(bus->tx_dma_chan, bus->tx_dma_phys, len,
-			DMA_MEM_TO_DEV, DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
-		BUG_ON (!txd);
-
-		txd->callback		= NULL;
-		txd->callback_param	= NULL;
-		dmaengine_submit(txd);
-
-		dma_async_issue_pending(bus->tx_dma_chan);
-
 		/* RX DMA */
 		rx_cfg.src_addr			= bus->phys + SPI_DR_OFFSET;
 		if (spi->bits_per_word <= 8) {
@@ -289,6 +267,28 @@ static void ambarella_spi_start_transfer(struct ambarella_spi *bus)
 
 		dmaengine_submit(rxd);
 		dma_async_issue_pending(bus->rx_dma_chan);
+
+		/* TX DMA */
+		tx_cfg.dst_addr			= bus->phys + SPI_DR_OFFSET;
+		if (spi->bits_per_word <= 8) {
+			tx_cfg.dst_addr_width	= DMA_SLAVE_BUSWIDTH_1_BYTE;
+		} else {
+			tx_cfg.dst_addr_width	= DMA_SLAVE_BUSWIDTH_2_BYTES;
+		}
+		tx_cfg.dst_maxburst		= 8;
+		tx_cfg.direction		= DMA_MEM_TO_DEV;
+
+		BUG_ON(dmaengine_slave_config(bus->tx_dma_chan, &tx_cfg) < 0);
+
+		txd = dmaengine_prep_slave_single(bus->tx_dma_chan, bus->tx_dma_phys, len,
+			DMA_MEM_TO_DEV, DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
+		BUG_ON (!txd);
+
+		txd->callback		= NULL;
+		txd->callback_param	= NULL;
+
+		dmaengine_submit(txd);
+		dma_async_issue_pending(bus->tx_dma_chan);
 	} else {
 		bus->widx = widx;
 		enable_irq(bus->irq);
@@ -780,6 +780,8 @@ int ambarella_spi_write(amba_spi_cfg_t *spi_cfg, amba_spi_write_t *spi_w)
 	struct spi_device			spi;
 	struct ambarella_spi			*bus;
 
+	memset(&spi, 0, sizeof(struct spi_device));
+
 	master = spi_busnum_to_master(spi_w->bus_id);
 	if (!master) {
 		err = -EINVAL;
@@ -810,6 +812,8 @@ int ambarella_spi_read(amba_spi_cfg_t *spi_cfg, amba_spi_read_t *spi_r)
 	struct spi_master			*master;
 	struct spi_device			spi;
 	struct ambarella_spi			*bus;
+
+	memset(&spi, 0, sizeof(struct spi_device));
 
 	master = spi_busnum_to_master(spi_r->bus_id);
 	if (!master) {
@@ -842,6 +846,8 @@ int ambarella_spi_write_then_read(amba_spi_cfg_t *spi_cfg,
 	struct spi_master			*master;
 	struct spi_device			spi;
 	struct ambarella_spi			*bus;
+
+	memset(&spi, 0, sizeof(struct spi_device));
 
 	master = spi_busnum_to_master(spi_wtr->bus_id);
 	if (!master) {
@@ -878,6 +884,8 @@ int ambarella_spi_write_and_read(amba_spi_cfg_t *spi_cfg,
 	struct ambarella_spi			*bus;
 	struct spi_message			msg;
 	struct spi_transfer			x[1];
+
+	memset(&spi, 0, sizeof(struct spi_device));
 
 	master = spi_busnum_to_master(spi_war->bus_id);
 	if (!master) {

@@ -62,6 +62,11 @@
 #define setbitsl(v, a)   (writel(((v) | readl(a)), (a)))
 #define clrbitsl(v, a)   (writel(((~(v)) & readl(a)), (a)))
 
+struct ambeth_gmac_op {
+	void (*set_mode)(void *priv);
+	void (*set_clock)(void *priv);
+};
+
 
 struct ambeth_desc {
 	u32				status;
@@ -113,6 +118,7 @@ struct ambeth_info {
 	struct net_device_stats		stats;
 	struct napi_struct		napi;
 	struct net_device		*ndev;
+	struct device			*dev;
 
 	struct mii_bus			new_bus;
 	struct phy_device		*phydev;
@@ -120,6 +126,7 @@ struct ambeth_info {
 	u8				pwr_gpio_active;
 	int				rst_gpio;
 	u8				rst_gpio_active;
+	u32				rst_gpio_delay;
 	u32				intf_type;
 	u32				intf_type_val;
 	u32				intf_type_mask;
@@ -141,7 +148,8 @@ struct ambeth_info {
 	unsigned char __iomem		*regbase;
 	struct regmap			*reg_rct;
 	struct regmap			*reg_scr;
-	u32				id;
+	const struct ambeth_gmac_op	*op;
+	u32				instance;
 	u32				msg_enable;
 	u32				bfsize;
 
@@ -149,6 +157,7 @@ struct ambeth_info {
 					enhance: 1,
 					second_ref_clk_50mhz : 1,
 					tx_clk_invert : 1,
+					rx_clk_invert : 1,
 					phy_enabled : 1,
 					ipc_tx : 1,
 					ipc_rx : 1,
@@ -157,6 +166,7 @@ struct ambeth_info {
 					dump_rx_free : 1,
 					ahb_mdio_clk_div: 4,
 					dump_rx_all : 1;
+
 };
 
 /*----------------------------------------------------------------------------*/

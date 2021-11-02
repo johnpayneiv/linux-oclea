@@ -927,6 +927,9 @@
 		compatible = "ambarella,iav";
 		#address-cells = <1>;
 		#size-cells = <1>;
+		reg-names = "vout_base";
+		reg = <0xec190000 0x1000>;
+		ranges = <0x0 0xec190000 0x1000>;
 
 		/* node for dsp controller */
 		dsp {
@@ -955,6 +958,8 @@
 		voutc0 {
 			compatible = "ambarella,voutc";
 			output-type = "digital";
+			reg-names = "display";
+			reg = <0x300 0x200>;
 			interrupts = <0 54 0x1>;
 			interrupt-names = "vout0";
 			pinctrl-names = "default";
@@ -965,6 +970,8 @@
 		voutc1 {
 			compatible = "ambarella,voutc";
 			output-type = "hdmi", "cvbs";
+			reg-names = "display";
+			reg = <0x600 0x200>;
 			interrupts = <0 55 0x1>;
 			interrupt-names = "vout1";
 		};
