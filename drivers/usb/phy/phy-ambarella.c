@@ -530,6 +530,7 @@ static int ambarella_phy_probe(struct platform_device *pdev)
 {
 	struct ambarella_phy *amb_phy;
 	int rval;
+	const char *phy_route;
 
 	amb_phy = devm_kzalloc(&pdev->dev, sizeof(*amb_phy), GFP_KERNEL);
 	if (!amb_phy) {
@@ -558,6 +559,30 @@ static int ambarella_phy_probe(struct platform_device *pdev)
 	ambarella_phy_of_parse(pdev, amb_phy);
 
 	ambarella_init_phy_switcher(amb_phy);
+
+	/* Set usb phy to device/host based on dts, POC setting unreliable */
+	rval = of_property_read_string(pdev->dev.of_node, "amb,phy-route", &phy_route);
+	if (rval == 0) {
+		if (!strcasecmp(phy_route, "host")) {
+			if (gpio_is_valid(amb_phy->gpio_md)) {
+				amb_phy->phy_route = PHY_TO_HOST_PORT;
+				gpio_direction_output(amb_phy->gpio_md,
+							amb_phy->md_host_active);
+			}
+
+			ambarella_switch_to_host(amb_phy);
+		} else if (!strcasecmp(phy_route, "device")) {
+			if (gpio_is_valid(amb_phy->gpio_md)) {
+				amb_phy->phy_route = PHY_TO_DEVICE_PORT;
+				gpio_direction_output(amb_phy->gpio_md,
+							!amb_phy->md_host_active);
+			}
+
+			ambarella_check_otg(amb_phy);
+		} else {
+			pr_err("Invalid argument!\n");
+		}
+	}
 
 	platform_set_drvdata(pdev, &amb_phy->phy);
 

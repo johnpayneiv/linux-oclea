@@ -753,6 +753,9 @@ static int opt3001_probe(struct i2c_client *client,
 	opt->dev = dev;
 
 	mutex_init(&opt->lock);
+
+	dev_set_name(&iio->dev, "iio:als");
+
 	init_waitqueue_head(&opt->result_ready_queue);
 	i2c_set_clientdata(client, iio);
 

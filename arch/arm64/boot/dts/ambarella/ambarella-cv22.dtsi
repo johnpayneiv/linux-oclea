@@ -21,6 +21,7 @@
 		serial4 = &uart4;
 		nand = &nand0;
 		sd0 = &sdmmc0;
+		sd1 = &sdmmc1;
 		spinor = &spinor0;
 		i2c0 = &i2c0;
 		i2c1 = &i2c1;
@@ -607,9 +608,19 @@
 				amb,pinmux-ids = <0x1029>;
 			};
 
+			pwm0_pins_a_off: pwm0_off@0 {
+				reg = <0>;
+				amb,pinmux-ids = <0x0029>;
+			};
+
 			pwm0_pins_b: pwm0@1 {
 				reg = <1>;
 				amb,pinmux-ids = <0x1089>;
+			};
+
+			pwm0_pins_b_off: pwm0_off@1 {
+				reg = <1>;
+				amb,pinmux-ids = <0x0089>;
 			};
 
 			pwm1_pins: pwm1@0 {
@@ -617,9 +628,19 @@
 				amb,pinmux-ids = <0x102a>;
 			};
 
+			pwm1_pins_off: pwm1_off@0 {
+				reg = <0>;
+				amb,pinmux-ids = <0x002a>;
+			};
+
 			pwm2_pins: pwm2@0 {
 				reg = <0>;
 				amb,pinmux-ids = <0x102b>;
+			};
+
+			pwm2_pins_off: pwm2_off@0 {
+				reg = <0>;
+				amb,pinmux-ids = <0x002b>;
 			};
 
 			pwm3_pins_a: pwm3@0 {
@@ -627,9 +648,19 @@
 				amb,pinmux-ids = <0x3000>;
 			};
 
+			pwm3_pins_a_off: pwm3_off@0 {
+				reg = <0>;
+				amb,pinmux-ids = <0x0000>;
+			};
+
 			pwm3_pins_b: pwm3@1 {
 				reg = <1>;
 				amb,pinmux-ids = <0x200f>;
+			};
+
+			pwm3_pins_b_off: pwm3_off@1 {
+				reg = <1>;
+				amb,pinmux-ids = <0x000f>;
 			};
 
 			pwm4_pins_a: pwm4@0 {
@@ -637,9 +668,19 @@
 				amb,pinmux-ids = <0x3001>;
 			};
 
+			pwm4_pins_a_off: pwm4_off@0 {
+				reg = <0>;
+				amb,pinmux-ids = <0x0001>;
+			};
+
 			pwm4_pins_b: pwm4@1 {
 				reg = <1>;
 				amb,pinmux-ids = <0x2010>;
+			};
+
+			pwm4_pins_b_off: pwm4_off@1 {
+				reg = <1>;
+				amb,pinmux-ids = <0x0010>;
 			};
 
 			pwm5_pins_a: pwm5@0 {
@@ -647,9 +688,19 @@
 				amb,pinmux-ids = <0x3002>;
 			};
 
+			pwm5_pins_a_off: pwm5_off@0 {
+				reg = <0>;
+				amb,pinmux-ids = <0x0002>;
+			};
+
 			pwm5_pins_b: pwm5@1 {
 				reg = <1>;
 				amb,pinmux-ids = <0x201d>;
+			};
+
+			pwm5_pins_b_off: pwm5_off@1 {
+				reg = <1>;
+				amb,pinmux-ids = <0x001d>;
 			};
 
 			pwm6_pins_a: pwm6@0 {
@@ -657,9 +708,19 @@
 				amb,pinmux-ids = <0x3003>;
 			};
 
+			pwm6_pins_a_off: pwm6_off@0 {
+				reg = <0>;
+				amb,pinmux-ids = <0x0003>;
+			};
+
 			pwm6_pins_b: pwm6@1 {
 				reg = <1>;
 				amb,pinmux-ids = <0x201e>;
+			};
+
+			pwm6_pins_b_off: pwm6_off@1 {
+				reg = <1>;
+				amb,pinmux-ids = <0x001e>;
 			};
 
 			pwm7_pins_a: pwm7@0 {
@@ -667,9 +728,19 @@
 				amb,pinmux-ids = <0x3008>;
 			};
 
+			pwm7_pins_a_off: pwm7_off@0 {
+				reg = <0>;
+				amb,pinmux-ids = <0x0008>;
+			};
+
 			pwm7_pins_b: pwm7@1 {
 				reg = <1>;
 				amb,pinmux-ids = <0x201f>;
+			};
+
+			pwm7_pins_b_off: pwm7_off@1 {
+				reg = <1>;
+				amb,pinmux-ids = <0x001f>;
 			};
 
 			pwm8_pins_a: pwm8@0 {
@@ -677,19 +748,29 @@
 				amb,pinmux-ids = <0x3011>;
 			};
 
+			pwm8_pins_a_off: pwm8_off@0 {
+				reg = <0>;
+				amb,pinmux-ids = <0x0011>;
+			};
+
 			pwm8_pins_b: pwm8@1 {
 				reg = <1>;
 				amb,pinmux-ids = <0x2020>;
 			};
 
-			pwm9_pins_a: pwm9@0 {
-				reg = <0>;
-				amb,pinmux-ids = <0x3012>;
+			pwm8_pins_b_off: pwm8_off@1 {
+				reg = <1>;
+				amb,pinmux-ids = <0x0020>;
 			};
 
-			pwm9_pins_b: pwm9@1 {
-				reg = <1>;
+			pwm9_pins_a: pwm9@0 {
+				reg = <0>;
 				amb,pinmux-ids = <0x2099>;
+			};
+
+			pwm9_pins_a_off: pwm9_off@0 {
+				reg = <0>;
+				amb,pinmux-ids = <0x0099>;
 			};
 
 			pwm10_pins: pwm10@0 {
@@ -697,9 +778,19 @@
 				amb,pinmux-ids = <0x2093>;
 			};
 
+			pwm10_pins_off: pwm10_off@0 {
+				reg = <0>;
+				amb,pinmux-ids = <0x0093>;
+			};
+
 			pwm11_pins: pwm11@0 {
 				reg = <0>;
 				amb,pinmux-ids = <0x2095>;
+			};
+
+			pwm11_pins_off: pwm11_off@0 {
+				reg = <0>;
+				amb,pinmux-ids = <0x0095>;
 			};
 
 			spi_slave_pins: spi_slave@0 {
@@ -1226,14 +1317,18 @@
 			compatible = "ambarella,fb";
 			reg = <0>;
 			amb,vout-id = <0>;
-			amb,format = "rgb565";
+			amb,format = "argb1555";
+			amb,max-width = <960>;
+			amb,max-height = <540>;
 		};
 
 		framebuffer1: framebuffer@1 {
 			compatible = "ambarella,fb";
 			reg = <1>;
 			amb,vout-id = <1>;
-			amb,format = "rgb565";
+			amb,format = "argb1555";
+			amb,max-width = <960>;
+			amb,max-height = <540>;
 		};
 	};
 
@@ -1435,11 +1530,11 @@
 			#clock-cells = <0>;
 			compatible = "ambarella,pll-clock";
 			reg = <0xed080054 4>,
-			      <0xed080058 4>,
-			      <0xed080124 4>,
-			      <0xed08012c 4>,
-			      <0xed080060 4>,
-			      <0xed080064 4>;
+			<0xed080058 4>,
+			<0xed080124 4>,
+			<0xed08012c 4>,
+			<0xed080060 4>,
+			<0xed080064 4>;
 			clocks = <&osc>;
 			clock-output-names = "gclk_audio_aux";
 			assigned-clocks = <&gclk_audio_aux>;

@@ -1399,7 +1399,8 @@ static void v4l_fill_fmtdesc(struct v4l2_fmtdesc *fmt)
 		default:
 			if (fmt->description[0])
 				return;
-			WARN(1, "Unknown pixelformat 0x%08x\n", fmt->pixelformat);
+			if (fmt->pixelformat != 0)
+				WARN(1, "Unknown pixelformat 0x%08x\n", fmt->pixelformat);
 			flags = 0;
 			snprintf(fmt->description, sz, "%c%c%c%c%s",
 					(char)(fmt->pixelformat & 0x7f),

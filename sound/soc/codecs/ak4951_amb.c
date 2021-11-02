@@ -71,6 +71,7 @@ struct ak4951_priv {
 	u32 reg_cache[AK4951_MAX_REGISTERS];
 	int onStereo;
 	int mic;
+	int digital_mic;
 	u8 fmt;
 };
 
@@ -1126,7 +1127,15 @@ static int ak4951_probe(struct snd_soc_component *component)
 	/*Enable LIN2*/
 	snd_soc_component_update_bits(component,AK4951_02_SIGNAL_SELECT1,0x18,0x08);//MPWR1
 	snd_soc_component_update_bits(component,AK4951_03_SIGNAL_SELECT2,0x0f,0x05);// LIN2 RIN2
-	snd_soc_component_update_bits(component,AK4951_08_DIGITL_MIC,0x01,0x00);//AMIC
+	if (ak4951->digital_mic)
+	{
+	    snd_soc_component_update_bits(component,AK4951_08_DIGITL_MIC,0x09,0x09);//AMIC
+	}
+	else
+	{
+	    snd_soc_component_update_bits(component,AK4951_08_DIGITL_MIC,0x09,0x00);//AMIC
+	}
+
 	snd_soc_component_update_bits(component,AK4951_1D_DIGITAL_FILTER_MODE,0x02,0x02);//ADC output
 	snd_soc_component_update_bits(component,AK4951_1D_DIGITAL_FILTER_MODE,0x01,0x01);//ALC output
 	snd_soc_component_update_bits(component,AK4951_02_SIGNAL_SELECT1,0x47,0x00);//Mic Gain 0x10100110
@@ -1260,7 +1269,7 @@ static int ak4951_i2c_probe(struct i2c_client *i2c,
 	}
 
 	ak4951->i2c_clt = i2c;
-
+    ak4951->digital_mic = !!of_find_property(np, "amb,dmic", NULL);
 	ak4951_data = ak4951;
 
 	i2c_set_clientdata(i2c, ak4951);
