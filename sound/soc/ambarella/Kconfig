@@ -68,6 +68,11 @@ config SND_SOC_ES8388
 	help
 		Support ES8388 Audio Codec.
 
+config SND_SOC_FM1288_AMB
+	tristate "FM1288 for Ambarella"
+	help
+		Support Forte Media FM1288 Audio Codec.
+
 config SND_SOC_WM8974_AMB
 	tristate "WM8974 for Ambarella"
 	help
