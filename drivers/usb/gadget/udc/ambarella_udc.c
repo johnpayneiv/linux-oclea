@@ -1598,7 +1598,7 @@ static int ambarella_udc_ep_enable(struct usb_ep *_ep,
 		if (IS_ISO_IN_EP(ep))
 			tmp *= 2;
 		else if (usb_endpoint_is_bulk_in(ep->ep.desc))
-			tmp *= 2;
+			tmp *= udc->bulk_fifo_factor;
 
 		udc->tx_fifosize -= tmp;
 		if (udc->tx_fifosize < 0) {
@@ -2278,6 +2278,10 @@ static int ambarella_udc_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "no scr regmap!\n");
 		return -ENODEV;
 	}
+
+	retval = of_property_read_u32(np, "amb,ep-bulk-fifo-factor", &udc->bulk_fifo_factor);
+	if (retval < 0)
+		udc->bulk_fifo_factor = 1;
 
 	udc->irq = platform_get_irq(pdev, 0);
 	if (udc->irq < 0) {

@@ -30,6 +30,7 @@
 #include <linux/of_net.h>
 #include <linux/of_mdio.h>
 #include <linux/of_gpio.h>
+#include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>
@@ -55,6 +56,66 @@
 static int msg_level = -1;
 module_param (msg_level, int, 0);
 MODULE_PARM_DESC (msg_level, "Override default message level");
+
+static void cv5_gmac_set_clock(void *priv)
+{
+	struct ambeth_info *gmac_priv = priv;
+
+	if (gmac_priv->tx_clk_invert) {
+		if (gmac_priv->instance == 0)
+			regmap_update_bits(gmac_priv->reg_scr, 0x60, BIT(31), BIT(31));
+		else
+			regmap_update_bits(gmac_priv->reg_scr, 0x60, BIT(28), BIT(28));
+	}
+
+	if (gmac_priv->rx_clk_invert) {
+		if (gmac_priv->instance == 0)
+			regmap_update_bits(gmac_priv->reg_scr, 0x60, BIT(0), BIT(0));
+		else
+			regmap_update_bits(gmac_priv->reg_scr, 0x60, BIT(11), BIT(11));
+	}
+}
+
+
+static void cv5_gmac_set_mode(void *priv)
+{
+	struct ambeth_info *gmac_priv = priv;
+	unsigned int value;
+
+	/* Enable ENET and set clock Source as clk_rx */
+	value = BIT(0);
+
+	switch (gmac_priv->intf_type) {
+	case PHY_INTERFACE_MODE_RGMII:
+	case PHY_INTERFACE_MODE_RGMII_ID:
+	case PHY_INTERFACE_MODE_RGMII_RXID:
+	case PHY_INTERFACE_MODE_RGMII_TXID:
+		dev_info(gmac_priv->dev, "select RGMII mode\n");
+		break;
+	case PHY_INTERFACE_MODE_RMII:
+		dev_info(gmac_priv->dev, "select RMII mode\n");
+		value |= BIT(1);
+		break;
+	default:
+		dev_info(gmac_priv->dev, "Unsupported mode\n");
+		break;
+	};
+
+	/* Enable ENET and select PHY interface */
+	if (gmac_priv->instance == 0)
+		regmap_update_bits(gmac_priv->reg_scr, 0x10C, 0x0F, value);
+	else
+		regmap_update_bits(gmac_priv->reg_scr, 0x10C, 0xF0, value << 4);
+}
+
+static const struct ambeth_gmac_op gen_gmac_ops = {
+	.set_mode = NULL,
+};
+
+static const struct ambeth_gmac_op cv5_gmac_ops = {
+	.set_mode = cv5_gmac_set_mode,
+	.set_clock = cv5_gmac_set_clock,
+};
 
 static void ambhw_dump(struct ambeth_info *lp)
 {
@@ -435,10 +496,13 @@ static int ambahb_mdio_poll_status(struct mii_bus *bus)
 	unsigned int value;
 	int i;
 
-	for (i = 0; i < 32; i++) {
+	for (i = 0; i < 1000; i++) {
 
 		regmap_read(lp->reg_scr, AHBSP_GMII_ADDR_OFFSET, &value);
-		if (!(value & (1 << 0)))
+		value = lp->instance == 0 ? value : value >> 16;
+
+
+		if (!(value & BIT(0)))
 			return 0;
 
 		schedule_timeout(HZ / 10);
@@ -451,41 +515,45 @@ static int ambahb_mdio_poll_status(struct mii_bus *bus)
 
 static int ambahb_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
 {
-	int regval, value = 0;
+	unsigned int regval;
+	unsigned int value;
 	struct ambeth_info *lp = bus->priv;
+
 
 	regval = ETH_MAC_GMII_ADDR_PA(mii_id) | ETH_MAC_GMII_ADDR_GR(regnum);
 	regval |= ((lp->ahb_mdio_clk_div - 1 ) << 2);
 	regval |= (0 << 1);			/* Read enable */
 	regval |= (1 << 0);
 
+	regval = lp->instance == 0 ? regval : regval << 16;
 	regmap_write(lp->reg_scr, AHBSP_GMII_ADDR_OFFSET, regval);
 
 	if (ambahb_mdio_poll_status(bus))
 		return -EIO;
 
 	regmap_read(lp->reg_scr, AHBSP_GMII_DATA_OFFSET, &value);
+	value = lp->instance == 0 ? value : value >> 16;
 
-	dev_dbg(&lp->ndev->dev,
-			"R: id.%02x reg.%02x val.%02x\n", mii_id, regnum, value);
+	dev_dbg(lp->dev, "R: id.%02x reg.%02x val.%02x\n", mii_id, regnum, value);
 
-	return value;
+	return value & 0xFFFF;
 }
 
 static int ambahb_mdio_write(struct mii_bus *bus, int mii_id,
 		int regnum, u16 value)
 {
 	struct ambeth_info *lp = bus->priv;
-	int regval;
+	unsigned int regval;
 
-	dev_dbg(&lp->ndev->dev,
-			"W: id.%02x reg.%02x val.%02x\n", mii_id, regnum, value);
+	dev_dbg(lp->dev, "W: id.%02x reg.%02x val.%02x\n", mii_id, regnum, value);
 
 	regval = ETH_MAC_GMII_ADDR_PA(mii_id) | ETH_MAC_GMII_ADDR_GR(regnum);
 	regval |= ((lp->ahb_mdio_clk_div - 1) << 2);
 	regval |= (1 << 1);			/* Write enable */
 	regval |= (1 << 0);
 
+	value = lp->instance == 0 ? value : value << 16;
+	regval = lp->instance == 0 ? regval : regval << 16;
 	regmap_write(lp->reg_scr, AHBSP_GMII_DATA_OFFSET, value);
 	regmap_write(lp->reg_scr, AHBSP_GMII_ADDR_OFFSET, regval);
 
@@ -601,9 +669,10 @@ static void ambeth_phy_init(struct ambeth_info *priv)
 
 	if (gpio_is_valid(priv->rst_gpio)) {
 		gpio_direction_output(priv->rst_gpio, priv->rst_gpio_active);
-		msleep(20);
+		msleep(priv->rst_gpio_delay);
 		gpio_direction_output(priv->rst_gpio, !priv->rst_gpio_active);
-		msleep(20);
+		msleep(priv->rst_gpio_delay);
+
 	}
 }
 
@@ -2319,9 +2388,9 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 	enum of_gpio_flags flags;
 	int ret_val, hw_intf, mask, val = 0;
 
-	lp->id = of_alias_get_id(np, "ethernet");
-	if (lp->id >= ETH_INSTANCES) {
-		dev_err(dev, "Invalid ethernet ID %d!\n", lp->id);
+	lp->instance = of_alias_get_id(np, "ethernet");
+	if (lp->instance >= ETH_INSTANCES) {
+		dev_err(dev, "Invalid ethernet ID %d!\n", lp->instance);
 		return -ENXIO;
 	}
 
@@ -2334,6 +2403,10 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 
 		lp->rst_gpio = of_get_named_gpio_flags(phy_np, "rst-gpios", 0, &flags);
 		lp->rst_gpio_active = !!(flags & OF_GPIO_ACTIVE_LOW);
+
+		ret_val = of_property_read_u32(phy_np, "rst-gpio-delay", &lp->rst_gpio_delay);
+		if (ret_val < 0)
+			lp->rst_gpio_delay = 20;
 
 		if (gpio_is_valid(lp->pwr_gpio)) {
 			ret_val = devm_gpio_request(dev, lp->pwr_gpio, "phy power");
@@ -2365,7 +2438,9 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 		return -ENODEV;
 	}
 
-	if (ENET_CTRL_OFFSET != RCT_INVALID_OFFSET) {
+	if (lp->op->set_mode) {
+		lp->op->set_mode(lp);
+	} else if (ENET_CTRL_OFFSET != RCT_INVALID_OFFSET) {
 		switch (lp->intf_type) {
 		case PHY_INTERFACE_MODE_RGMII:
 			mask = ENET_SEL | ENET_PHY_INTF_SEL_RMII;
@@ -2376,12 +2451,12 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 			val = ENET_SEL | ENET_PHY_INTF_SEL_RMII;
 			break;
 		default:
-			dev_err(dev, "Invalid PHY interface: %d!\n", lp->intf_type);
+			dev_err(dev, "Not supported PHY type 0x%x\n", lp->intf_type);
 			return -EINVAL;
 		}
 
-		mask <<= (lp->id * 4);
-		val <<= (lp->id * 4);
+		mask <<= (lp->instance * 4);
+		val <<= (lp->instance * 4);
 		regmap_update_bits(lp->reg_rct, ENET_CTRL_OFFSET, mask, val);
 		lp->intf_type_val = val;
 		lp->intf_type_mask = mask;
@@ -2413,14 +2488,14 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 		}
 
 		if (ret_val < 0) {
-			dev_err(dev, "PHY interface dismatch: %d(hw), %d(sw)!\n",
-					hw_intf, lp->intf_type);
+			dev_err(dev, "PHY interface dismatch: Actual(0x%x):0x%x, Select: 0x%x\n",
+					hw_intf, hw_intf >> 28, lp->intf_type);
 			return -ENODEV;
 		}
 	}
 
-	if (lp->intf_type == PHY_INTERFACE_MODE_GMII ||
-			lp->intf_type == PHY_INTERFACE_MODE_RGMII)
+	if (lp->intf_type >= PHY_INTERFACE_MODE_RGMII &&
+		lp->intf_type <= PHY_INTERFACE_MODE_RGMII_TXID)
 		ethtool_convert_link_mode_to_legacy_u32(&lp->phy_supported, PHY_GBIT_FEATURES);
 	else
 		ethtool_convert_link_mode_to_legacy_u32(&lp->phy_supported, PHY_BASIC_FEATURES);
@@ -2455,12 +2530,17 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 	lp->mdio_gpio = !!of_find_property(np, "amb,mdio-gpio", NULL);
 
 	lp->tx_clk_invert = !!of_find_property(np, "amb,tx-clk-invert", NULL);
-	if (lp->tx_clk_invert)
+	if (!lp->op->set_clock && lp->tx_clk_invert)
 		regmap_update_bits(lp->reg_scr, AHBSP_CTL_OFFSET, 1<<31, 1<<31);
+
+	lp->rx_clk_invert = !!of_find_property(np, "amb,rx-clk-invert", NULL);
 
 	lp->second_ref_clk_50mhz = !!of_find_property(np, "amb,2nd-ref-clk-50mhz", NULL);
 	if (lp->second_ref_clk_50mhz)
 		regmap_update_bits(lp->reg_scr, AHBSP_CTL_OFFSET, 1<<23, 1<<23);
+
+	if (lp->op->set_clock)
+		lp->op->set_clock(lp);
 
 	return 0;
 }
@@ -2468,6 +2548,7 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 static int ambeth_drv_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node, *mdio_np = NULL;
+	const struct ambeth_gmac_op *data;
 	struct net_device *ndev;
 	struct mii_bus *bus;
 	struct ambeth_info *lp;
@@ -2481,6 +2562,16 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 	lp = netdev_priv(ndev);
+
+	data = of_device_get_match_data(&pdev->dev);
+	if (!data) {
+		dev_err(&pdev->dev, "no match any device data\n");
+		ret_val = -ENODEV;
+		goto ambeth_drv_probe_free_netdev;
+	}
+
+	lp->op = data;
+	lp->dev = &pdev->dev;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {
@@ -2531,8 +2622,8 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 	if (ret_val < 0)
 		goto ambeth_drv_probe_free_netdev;
 
-	ndev->hw_features = NETIF_F_SG | NETIF_F_IP_CSUM | NETIF_F_IPV6_CSUM |
-			    NETIF_F_RXCSUM;
+	ndev->hw_features = NETIF_F_SG | NETIF_F_IP_CSUM |
+		NETIF_F_IPV6_CSUM | NETIF_F_RXCSUM;
 
 	if(lp->mdio_gpio){
 		mdio_np = of_find_compatible_node(NULL, NULL, "virtual,mdio-gpio");
@@ -2741,8 +2832,10 @@ ambeth_drv_resume_exit:
 }
 #endif
 
+
 static const struct of_device_id ambarella_eth_dt_ids[] = {
-	{ .compatible = "ambarella,eth" },
+	{ .compatible = "ambarella,eth", .data = &gen_gmac_ops },
+	{ .compatible = "ambarella,cv5-gmac", .data = &cv5_gmac_ops },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, ambarella_eth_dt_ids);

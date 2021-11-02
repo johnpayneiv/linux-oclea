@@ -121,20 +121,19 @@ static int m88q5050_config_init(struct phy_device *phydev)
 {
 	unsigned int value;
 
-#if 0
-	/* adjust RGMII timing */
-	value = mdiobus_read(phydev->mdio.bus, MARVELL_RGMII_PORT, MARVELL_PHYSICAL_CTRL_REG);
-	//value |= RGMII_RX_TIMING;	// NG if enabled
-	value |= RGMII_TX_TIMING;	// That is OK.
-	mdiobus_write(phydev->mdio.bus, MARVELL_RGMII_PORT, MARVELL_PHYSICAL_CTRL_REG, value);
-	printk("PORT 8 RGMII_TX_TIMING %x\n", value);
-#endif
-
 	/* force 100Mbps FULL duplex */
 	mdiobus_write(phydev->mdio.bus, MARVELL_RGMII_PORT,
 			MARVELL_PHYSICAL_CTRL_REG, 0x203D);
 
 	printk("Marvell Faster Link up ...\n");
+
+	/* adjust RGMII timing */
+	value = mdiobus_read(phydev->mdio.bus, MARVELL_RGMII_PORT,
+			MARVELL_PHYSICAL_CTRL_REG);
+	//value |= RGMII_RX_TIMING;	// NG if enabled
+	value |= RGMII_TX_TIMING;	// That is OK.
+	mdiobus_write(phydev->mdio.bus, MARVELL_RGMII_PORT,
+			MARVELL_PHYSICAL_CTRL_REG, value);
 
 	/* Faster Link up */
 	m88q5050_glb2_smi_write(phydev, phydev->mdio.addr, 0x1D, 0x1B);

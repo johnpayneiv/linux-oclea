@@ -40,7 +40,8 @@ int ambptb_partition(struct parsed_partitions *state)
 	dev = disk_to_dev(state->bdev->bd_disk);
 
 	while (dev) {
-		if (of_device_is_compatible(dev->of_node, "ambarella,sdmmc")) {
+		if (of_device_is_compatible(dev->of_node, "ambarella,sdmmc") ||
+			of_device_is_compatible(dev->of_node, "ambarella,sdhci")) {
 			np = of_get_child_by_name(dev->of_node, "partitions");
 			break;
 		}

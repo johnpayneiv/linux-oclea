@@ -506,6 +506,7 @@ static const struct snd_soc_component_driver soc_component_driver_tas2505 = {
 	.num_dapm_routes	= ARRAY_SIZE(tas2505_audio_map),
 
 	.suspend_bias_off	= 1,
+	.idle_bias_on		= 1,
 	.endianness		= 1,
 	.non_legacy_dai_naming	= 1,
 };

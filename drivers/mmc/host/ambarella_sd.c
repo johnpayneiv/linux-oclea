@@ -475,7 +475,7 @@ static u32 ambarella_sd_set_dll(struct ambarella_mmc_host *host, u32 sbc)
 
 static void ambarella_sd_recovery(struct ambarella_mmc_host *host)
 {
-	u32 latency, ctrl_reg = 0, sel_reg = 0, sbc_reg = 0;
+	u32 latency, ctrl_reg = 0, sel_reg = 0, sbc_reg = 0, pwr_reg;
 	u32 divisor = 0;
 
 	latency = readl_relaxed(host->regbase + SD_LAT_CTRL_OFFSET);
@@ -486,10 +486,12 @@ static void ambarella_sd_recovery(struct ambarella_mmc_host *host)
 	}
 
 	divisor = readw_relaxed(host->regbase + SD_CLK_OFFSET) & 0xff00;
+	pwr_reg = readb_relaxed(host->regbase + SD_PWR_OFFSET);
 
 	ambarella_sd_reset_all(host);
 
 	/*restore the clock*/
+	writeb_relaxed(pwr_reg, host->regbase + SD_PWR_OFFSET);
 	ambarella_sd_switch_clk(host, false);
 	writew_relaxed((divisor | SD_CLK_ICLK_EN), host->regbase + SD_CLK_OFFSET);
 	while (!(readw_relaxed(host->regbase + SD_CLK_OFFSET) & SD_CLK_ICLK_STABLE)) {

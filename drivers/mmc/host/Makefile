@@ -7,7 +7,6 @@ obj-$(CONFIG_MMC_ARMMMCI) += armmmci.o
 armmmci-y := mmci.o
 armmmci-$(CONFIG_MMC_QCOM_DML) += mmci_qcom_dml.o
 armmmci-$(CONFIG_MMC_STM32_SDMMC) += mmci_stm32_sdmmc.o
-obj-$(CONFIG_MMC_AMBARELLA)	+= ambarella_sd.o
 obj-$(CONFIG_MMC_PXA)		+= pxamci.o
 obj-$(CONFIG_MMC_MXC)		+= mxcmmc.o
 obj-$(CONFIG_MMC_MXS)		+= mxs-mmc.o
@@ -98,6 +97,7 @@ obj-$(CONFIG_MMC_SDHCI_MICROCHIP_PIC32)	+= sdhci-pic32.o
 obj-$(CONFIG_MMC_SDHCI_BRCMSTB)		+= sdhci-brcmstb.o
 obj-$(CONFIG_MMC_SDHCI_OMAP)		+= sdhci-omap.o
 obj-$(CONFIG_MMC_SDHCI_SPRD)		+= sdhci-sprd.o
+obj-$(CONFIG_MMC_SDHCI_AMBARELLA)	+= sdhci-ambarella.o
 obj-$(CONFIG_MMC_CQHCI)			+= cqhci.o
 
 ifeq ($(CONFIG_CB710_DEBUG),y)
@@ -106,3 +106,4 @@ endif
 
 obj-$(CONFIG_MMC_SDHCI_XENON)	+= sdhci-xenon-driver.o
 sdhci-xenon-driver-y		+= sdhci-xenon.o sdhci-xenon-phy.o
+obj-$(CONFIG_MMC_AMBARELLA)	+= ambarella_sd.o

@@ -276,7 +276,7 @@ static int ambarella_init_phy_switcher(struct ambarella_phy *amb_phy)
 			USB0_IDDIG0_MASK, USB0_IDDIG0_MASK);
 	} else {
 		clrbitsl(amb_phy->pol_reg, 0x1 << 13);
-		setbitsl(amb_phy->pol_reg, amb_phy->ovrcur_pol_inv << 13);
+		setbitsl(amb_phy->pol_reg, amb_phy->ovrcur_pol_inv);
 		setbitsl(amb_phy->own_reg, USB0_IDDIG0_MASK);
 	}
 

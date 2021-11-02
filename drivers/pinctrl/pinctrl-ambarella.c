@@ -291,34 +291,20 @@ static int amb_pinmux_get_groups(struct pinctrl_dev *pctldev,
 static void amb_pinmux_set_altfunc(struct amb_pinctrl_soc_data *soc,
 			u32 bank, u32 offset, enum amb_pin_altfunc altfunc)
 {
-	void __iomem *regbase = soc->regbase[bank];
 	void __iomem *iomux_reg;
 	u32 i, data;
 
-	if (altfunc == AMB_ALTFUNC_GPIO) {
-		data = readl_relaxed(regbase + GPIO_AFSEL_OFFSET);
-		writel_relaxed(data & ~(0x1 << offset), regbase + GPIO_AFSEL_OFFSET);
-		data = readl_relaxed(regbase + GPIO_DIR_OFFSET);
-		writel_relaxed(data & ~(0x1 << offset), regbase + GPIO_DIR_OFFSET);
-	} else {
-		data = readl_relaxed(regbase + GPIO_AFSEL_OFFSET);
-		writel_relaxed(data | (0x1 << offset), regbase + GPIO_AFSEL_OFFSET);
-		data = readl_relaxed(regbase + GPIO_MASK_OFFSET);
-		writel_relaxed(data & ~(0x1 << offset), regbase + GPIO_MASK_OFFSET);
+	for (i = 0; i < 3; i++) {
+		iomux_reg = soc->iomux_base + IOMUX_REG_OFFSET(bank, i);
+		data = readl_relaxed(iomux_reg);
+		data &= (~(0x1 << offset));
+		data |= (((altfunc >> i) & 0x1) << offset);
+		writel_relaxed(data, iomux_reg);
 	}
 
-	if (soc->iomux_base) {
-		for (i = 0; i < 3; i++) {
-			iomux_reg = soc->iomux_base + IOMUX_REG_OFFSET(bank, i);
-			data = readl_relaxed(iomux_reg);
-			data &= (~(0x1 << offset));
-			data |= (((altfunc >> i) & 0x1) << offset);
-			writel_relaxed(data, iomux_reg);
-		}
-		iomux_reg = soc->iomux_base + IOMUX_CTRL_SET_OFFSET;
-		writel_relaxed(0x1, iomux_reg);
-		writel_relaxed(0x0, iomux_reg);
-	}
+	iomux_reg = soc->iomux_base + IOMUX_CTRL_SET_OFFSET;
+	writel_relaxed(0x1, iomux_reg);
+	writel_relaxed(0x0, iomux_reg);
 }
 
 /* enable a specified pinmux by writing to registers */

@@ -178,6 +178,7 @@
 			pinctrl-names = "default";
 			pinctrl-0 = <&uart0_pins>;
 			clocks = <&gclk_uart0>;
+			amb,ignore-fe;
 			status = "ok";
 		};
 
@@ -493,6 +494,16 @@
 				amb,pinmux-ids = <0x3036 0x3037 0x3038 0x303b
 						  0x303c 0x303f 0x3042 0x3043
 						  0x3044 0x3045>;
+			};
+
+			enet_ptp_pps_o_pins_a: enet_ptp_pps_o@0 {
+				reg = <0>;
+				amb,pinmux-ids = <0x4007>;
+			};
+
+			enet_ptp_pps_o_pins_b: enet_ptp_pps_o@1 {
+				reg = <1>;
+				amb,pinmux-ids = <0x3007>;
 			};
 
 			rgmii_mdio_pins: mdio@0 {
@@ -990,6 +1001,7 @@
 			pinctrl-0 = <&uart1_pins &uart1_flow_pins>;
 			clocks = <&gclk_uart1>;
 			amb,msr-used;	/* use Modem Status Register */
+			amb,ignore-fe;
 			amb,txdma-used;
 			amb,rxdma-used;
 			dmas = <&dma0 9>, <&dma0 10>;
@@ -1005,6 +1017,7 @@
 			pinctrl-0 = <&uart2_pins &uart2_flow_pins>;
 			clocks = <&gclk_uart2>;
 			amb,msr-used;	/* use Modem Status Register */
+			amb,ignore-fe;
 			amb,txdma-used;
 			amb,rxdma-used;
 			dmas = <&dma1 13>, <&dma1 14>;
@@ -1020,6 +1033,7 @@
 			pinctrl-0 = <&uart3_pins &uart3_flow_pins>;
 			clocks = <&gclk_uart3>;
 			amb,msr-used;	/* use Modem Status Register */
+			amb,ignore-fe;
 			amb,txdma-used;
 			amb,rxdma-used;
 			dmas = <&dma1 15>, <&dma1 16>;
@@ -1035,6 +1049,7 @@
 			pinctrl-0 = <&uart4_pins &uart4_flow_pins>;
 			clocks = <&gclk_uart4>;
 			amb,msr-used;	/* use Modem Status Register */
+			amb,ignore-fe;
 			amb,txdma-used;
 			amb,rxdma-used;
 			dmas = <&dma1 17>, <&dma1 18>;
@@ -1128,6 +1143,9 @@
 		compatible = "ambarella,iav";
 		#address-cells = <1>;
 		#size-cells = <1>;
+		reg-names = "vout_base";
+		reg = <0xe0008000 0x1000>;
+		ranges = <0x0 0xe0008000 0x1000>;
 
 		hwtimer {
 			compatible = "ambarella,hwtimer";
@@ -1162,6 +1180,8 @@
 		voutc0 {
 			compatible = "ambarella,voutc";
 			output-type = "digital", "mipi_dsi", "fpd_link";
+			reg-names = "display", "mipi_dsi_cmd";
+			reg = <0x300 0x200>, <0xb00 0x18>;
 			interrupts = <0 89 0x1>;
 			interrupt-names = "vout0";
 			rct-regmap = <&rct_syscon>;
@@ -1174,6 +1194,8 @@
 		voutc1 {
 			compatible = "ambarella,voutc";
 			output-type = "hdmi", "mipi_csi", "cvbs";
+			reg-names = "display";
+			reg = <0x600 0x200>;
 			interrupts = <0 88 0x1>;
 			interrupt-names = "vout1";
 			rct-regmap = <&rct_syscon>;
