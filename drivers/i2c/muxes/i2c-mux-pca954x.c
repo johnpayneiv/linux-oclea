@@ -417,6 +417,8 @@ static int pca954x_probe(struct i2c_client *client,
 	struct pca954x *data;
 	int num;
 	int ret;
+	int begin_id;
+	u32 curreg = 0;
 
 	if (!i2c_check_functionality(adap, I2C_FUNC_SMBUS_BYTE))
 		return -ENODEV;
@@ -479,15 +481,24 @@ static int pca954x_probe(struct i2c_client *client,
 	if (idle_disconnect_dt)
 		data->idle_state = MUX_IDLE_DISCONNECT;
 
+	begin_id = 0;
+	if (of_property_read_u32(np, "bus-num-start", &curreg) == 0) {
+		begin_id = curreg;
+	}
+
 	ret = pca954x_irq_setup(muxc);
 	if (ret)
 		goto fail_cleanup;
 
 	/* Now create an adapter for each channel */
 	for (num = 0; num < data->chip->nchans; num++) {
-		ret = i2c_mux_add_adapter(muxc, 0, num, 0);
+		ret = i2c_mux_add_adapter(muxc, begin_id, num, 0);
 		if (ret)
 			goto fail_cleanup;
+
+		if (begin_id > 0) {
+			begin_id++;
+		}
 	}
 
 	if (data->irq) {
