@@ -646,6 +646,7 @@ static u32 ambarella_i2c_func(struct i2c_adapter *adap)
 
 static const struct i2c_algorithm ambarella_i2c_algo = {
 	.master_xfer	= ambarella_i2c_xfer,
+	.master_xfer_atomic	= ambarella_i2c_xfer,
 	.functionality	= ambarella_i2c_func,
 };
 
