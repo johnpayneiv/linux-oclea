@@ -14,11 +14,23 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/of_gpio.h>
 #include <linux/regmap.h>
 #include <linux/slab.h>
 
 /* register numbers */
 #define IS31FL319X_SHUTDOWN		0x00
+
+#define IS31FL3193_BREATH_CTRL  0x01
+#define IS31FL3193_LED_MODE     0x02
+#define IS31FL3193_CURRENT_CTRL 0x03
+#define IS31FL3193_PWM(channel) (0x04 + channel)
+#define IS31FL3193_DATA_UPDATE  0x07
+#define IS31FL3193_TIME_UPDATE  0x1c
+#define IS31FL3193_LED_CTRL     0x1d
+#define IS31FL3193_RESET		0x2f
+#define IS31FL3193_REG_CNT		(IS31FL3193_RESET + 1)
+
 #define IS31FL319X_CTRL1		0x01
 #define IS31FL319X_CTRL2		0x02
 #define IS31FL319X_CONFIG1		0x03
@@ -70,7 +82,18 @@ struct is31fl319x_chip {
 		struct led_classdev     cdev;
 		u32                     max_microamp;
 		bool                    configured;
+		bool                    inverted;
 	} leds[IS31FL319X_MAX_LEDS];
+
+	// control SDB chip shutdown
+	unsigned int shutdown_gpio;
+	unsigned int shutdown_active;
+
+	// gpio to control the pwm pullup to 3V3 to handle inverted PWM signal
+	// requirement which would cause the lights to be enabled at boot if
+	// we have a hardwared pullup to 3V3
+	unsigned int pwm_pullup_gpio;
+	unsigned int pwm_pullup_active;
 };
 
 struct is31fl319x_chipdef {
@@ -115,12 +138,22 @@ static int is31fl319x_brightness_set(struct led_classdev *cdev,
 	int i;
 	u8 ctrl1 = 0, ctrl2 = 0;
 
+	int b = brightness;
+
+	if (led->inverted) {
+		b = 255 - b;
+	}
+
 	dev_dbg(&is31->client->dev, "%s %d: %d\n", __func__, chan, brightness);
 
 	mutex_lock(&is31->lock);
 
 	/* update PWM register */
-	ret = regmap_write(is31->regmap, IS31FL319X_PWM(chan), brightness);
+	if (is31->cdef->num_leds <= 3) {
+		ret = regmap_write(is31->regmap, IS31FL3193_PWM(chan), b);
+	} else {
+		ret = regmap_write(is31->regmap, IS31FL319X_PWM(chan), b);
+	}
 	if (ret < 0)
 		goto out;
 
@@ -134,7 +167,12 @@ static int is31fl319x_brightness_set(struct led_classdev *cdev,
 		 * the current setting, we read from the regmap cache
 		 */
 
-		ret = regmap_read(is31->regmap, IS31FL319X_PWM(i), &pwm_value);
+		if (is31->cdef->num_leds <= 3) {
+			ret = regmap_read(is31->regmap, IS31FL3193_PWM(i), &pwm_value);
+		} else {
+			ret = regmap_read(is31->regmap, IS31FL319X_PWM(i), &pwm_value);
+		}
+
 		dev_dbg(&is31->client->dev, "%s read %d: ret=%d: %d\n",
 			__func__, i, ret, pwm_value);
 		on = ret >= 0 && pwm_value > LED_OFF;
@@ -150,12 +188,26 @@ static int is31fl319x_brightness_set(struct led_classdev *cdev,
 	if (ctrl1 > 0 || ctrl2 > 0) {
 		dev_dbg(&is31->client->dev, "power up %02x %02x\n",
 			ctrl1, ctrl2);
-		regmap_write(is31->regmap, IS31FL319X_CTRL1, ctrl1);
-		regmap_write(is31->regmap, IS31FL319X_CTRL2, ctrl2);
+
+		if (is31->cdef->num_leds <= 3) {
+			regmap_write(is31->regmap, IS31FL3193_LED_CTRL, ctrl1);
+		} else {
+			regmap_write(is31->regmap, IS31FL319X_CTRL1, ctrl1);
+			regmap_write(is31->regmap, IS31FL319X_CTRL2, ctrl2);
+		}
+
 		/* update PWMs */
-		regmap_write(is31->regmap, IS31FL319X_DATA_UPDATE, 0x00);
+		if (is31->cdef->num_leds <= 3) {
+			regmap_write(is31->regmap, IS31FL3193_DATA_UPDATE, 0x00);
+		} else {
+			regmap_write(is31->regmap, IS31FL319X_DATA_UPDATE, 0x00);
+		}
 		/* enable chip from shut down */
-		ret = regmap_write(is31->regmap, IS31FL319X_SHUTDOWN, 0x01);
+		if (is31->cdef->num_leds <= 3) {
+			ret = regmap_write(is31->regmap, IS31FL319X_SHUTDOWN, 0x20);
+		} else {
+			ret = regmap_write(is31->regmap, IS31FL319X_SHUTDOWN, 0x01);
+		}
 	} else {
 		dev_dbg(&is31->client->dev, "power down\n");
 		/* shut down (no need to clear CTRL1/2) */
@@ -193,6 +245,8 @@ static int is31fl319x_parse_child_dt(const struct device *dev,
 					  IS31FL319X_CURRENT_MAX);
 	}
 
+	led->inverted = of_property_read_bool(child, "inverted");
+
 	return 0;
 }
 
@@ -201,6 +255,7 @@ static int is31fl319x_parse_dt(struct device *dev,
 {
 	struct device_node *np = dev->of_node, *child;
 	const struct of_device_id *of_dev_id;
+	enum of_gpio_flags flags;
 	int count;
 	int ret;
 
@@ -225,6 +280,31 @@ static int is31fl319x_parse_dt(struct device *dev,
 			is31->cdef->num_leds);
 		return -ENODEV;
 	}
+
+	// check for optional shutdown gpio in DTS
+	is31->shutdown_gpio = of_get_named_gpio_flags(np, "shutdown-gpio", 0, &flags);
+	is31->shutdown_active = !!(flags & OF_GPIO_ACTIVE_LOW);
+
+	if (is31->shutdown_gpio >= 0) {
+		ret = devm_gpio_request(dev, is31->shutdown_gpio, "is31fl319x shutdown");
+		if (ret < 0){
+			dev_err(dev, "Failed to request shutdown pin: %d\n", ret);
+			return -EINVAL;
+		}
+	}
+
+	// check for optional pullup gpio in DTS
+	is31->pwm_pullup_gpio = of_get_named_gpio_flags(np, "pwm-pullup-gpio", 0, &flags);
+	is31->pwm_pullup_active = !!(flags & OF_GPIO_ACTIVE_LOW);
+
+	if (is31->pwm_pullup_gpio >= 0) {
+		ret = devm_gpio_request(dev, is31->pwm_pullup_gpio, "is31fl319x pwm pullup");
+		if (ret < 0){
+			dev_err(dev, "Failed to request pwm pullup pin: %d\n", ret);
+			return -EINVAL;
+		}
+	}
+
 
 	for_each_child_of_node(np, child) {
 		struct is31fl319x_led *led;
@@ -277,6 +357,22 @@ static bool is31fl319x_readable_reg(struct device *dev, unsigned int reg)
 	return false;
 }
 
+static bool is31fl3193_volatile_reg(struct device *dev, unsigned int reg)
+{ /* volatile registers are not cached */
+	switch (reg) {
+	case IS31FL3193_DATA_UPDATE:
+	case IS31FL3193_TIME_UPDATE:
+	case IS31FL3193_RESET:
+		return true; /* always write-through */
+	default:
+		return false;
+	}
+}
+
+static const struct reg_default is31fl3193_reg_defaults[] = {
+    { IS31FL3193_BREATH_CTRL, 0x00},
+};
+
 static bool is31fl319x_volatile_reg(struct device *dev, unsigned int reg)
 { /* volatile registers are not cached */
 	switch (reg) {
@@ -303,6 +399,17 @@ static const struct reg_default is31fl319x_reg_defaults[] = {
 	{ IS31FL319X_PWM(8), 0x00},
 };
 
+static struct regmap_config regmap_config_is31fl3193 = {
+	.reg_bits = 8,
+	.val_bits = 8,
+	.max_register = IS31FL3193_REG_CNT,
+	.cache_type = REGCACHE_FLAT,
+	.readable_reg = is31fl319x_readable_reg,
+	.volatile_reg = is31fl3193_volatile_reg,
+	.reg_defaults = is31fl3193_reg_defaults,
+	.num_reg_defaults = ARRAY_SIZE(is31fl3193_reg_defaults),
+};
+
 static struct regmap_config regmap_config = {
 	.reg_bits = 8,
 	.val_bits = 8,
@@ -313,6 +420,23 @@ static struct regmap_config regmap_config = {
 	.reg_defaults = is31fl319x_reg_defaults,
 	.num_reg_defaults = ARRAY_SIZE(is31fl319x_reg_defaults),
 };
+
+static inline int is31fl3193_microamp_to_cs(struct device *dev, u32 microamp)
+{ /* round down to nearest supported value (range check done by caller) */
+    if (microamp <= 5000) {
+        return 0x2 << 2;
+    } else if (microamp <= 10000) {
+        return 0x1 << 2;
+    } else if (microamp <= 17500) {
+        return 0x4 << 2;
+    } else if (microamp <= 30000) {
+        return 0x3 << 2;
+    } else if (microamp <= 42000) {
+        return 0x0;
+    }
+
+    return 0x0;
+}
 
 static inline int is31fl319x_microamp_to_cs(struct device *dev, u32 microamp)
 { /* round down to nearest supported value (range check done by caller) */
@@ -351,7 +475,13 @@ static int is31fl319x_probe(struct i2c_client *client,
 		goto free_mutex;
 
 	is31->client = client;
-	is31->regmap = devm_regmap_init_i2c(client, &regmap_config);
+
+	if (is31->cdef->num_leds <= 3) {
+		is31->regmap = devm_regmap_init_i2c(client, &regmap_config_is31fl3193);
+	} else {
+		is31->regmap = devm_regmap_init_i2c(client, &regmap_config);
+	}
+
 	if (IS_ERR(is31->regmap)) {
 		dev_err(&client->dev, "failed to allocate register map\n");
 		err = PTR_ERR(is31->regmap);
@@ -360,9 +490,20 @@ static int is31fl319x_probe(struct i2c_client *client,
 
 	i2c_set_clientdata(client, is31);
 
+	// power the device up
+	if (is31->shutdown_gpio >= 0) {
+		gpio_direction_output(is31->shutdown_gpio, !is31->shutdown_active);
+	}
+
 	/* check for write-reply from chip (we can't read any registers) */
-	err = regmap_write(is31->regmap, IS31FL319X_RESET, 0x00);
-	if (err < 0) {
+	if (is31->cdef->num_leds <= 3) {
+		err = regmap_write(is31->regmap, IS31FL3193_RESET, 0x00);
+	} else {
+		err = regmap_write(is31->regmap, IS31FL319X_RESET, 0x00);
+	}
+
+	// no reply from 3193 for reset?
+	if (err < 0 && is31->cdef->num_leds > 3) {
 		dev_err(&client->dev, "no response from chip write: err = %d\n",
 			err);
 		err = -EIO; /* does not answer */
@@ -379,9 +520,14 @@ static int is31fl319x_probe(struct i2c_client *client,
 		    is31->leds[i].max_microamp < aggregated_led_microamp)
 			aggregated_led_microamp = is31->leds[i].max_microamp;
 
-	regmap_write(is31->regmap, IS31FL319X_CONFIG2,
-		     is31fl319x_microamp_to_cs(dev, aggregated_led_microamp) |
-		     is31fl319x_db_to_gain(is31->audio_gain_db));
+	if (is31->cdef->num_leds <= 3) {
+		regmap_write(is31->regmap, IS31FL3193_CURRENT_CTRL,
+			is31fl3193_microamp_to_cs(dev, aggregated_led_microamp));
+	} else {
+		regmap_write(is31->regmap, IS31FL319X_CONFIG2,
+			is31fl319x_microamp_to_cs(dev, aggregated_led_microamp) |
+			is31fl319x_db_to_gain(is31->audio_gain_db));
+	}
 
 	for (i = 0; i < is31->cdef->num_leds; i++) {
 		struct is31fl319x_led *led = &is31->leds[i];
@@ -395,6 +541,16 @@ static int is31fl319x_probe(struct i2c_client *client,
 		err = devm_led_classdev_register(&client->dev, &led->cdev);
 		if (err < 0)
 			goto free_mutex;
+
+		// if we are inverted we need to enable full output now
+		if (led->inverted) {
+			is31fl319x_brightness_set(&led->cdev, 0);
+		}
+	}
+
+	// power the pwm pullups now we are setup
+	if (is31->pwm_pullup_gpio >= 0) {
+		gpio_direction_output(is31->pwm_pullup_gpio, is31->pwm_pullup_active);
 	}
 
 	return 0;
