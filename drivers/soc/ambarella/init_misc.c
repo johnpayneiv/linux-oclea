@@ -20,8 +20,12 @@
  *
  */
 
+#include <linux/delay.h>
+#include <linux/device.h>
+#include <linux/i2c.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/proc_fs.h>
 #include <linux/debugfs.h>
 
@@ -60,3 +64,59 @@ static int __init ambarella_init_root_dir(void)
 }
 core_initcall(ambarella_init_root_dir);
 
+/* Shutdown code for socs with pmic */
+
+static struct i2c_board_info pmic_info = {
+	/* Use placeholder address until after i2c_new_device to avoid resource
+	   busy error from dts entry */
+	I2C_BOARD_INFO("pmic_mp5424", 0x67),
+};
+
+void ambarella_power_off(void)
+{
+	struct i2c_adapter *i2c_adap1;
+	struct i2c_client *i2c_dev;
+	struct device_node *np;
+	struct device_node *i2c_node;
+	int i2c_bus = -1;
+	int i2c_addr = 0x69;
+
+	np = of_find_node_by_name(NULL, "pmic_mp5424");
+	if (!np) {
+		printk("Could not find pmic dts node\n");
+		for(;;);
+	}
+
+	if (of_property_read_u32(np, "reg", &i2c_addr) != 0) {
+		printk("Coult not find pmic address\n");
+		for(;;);
+	}
+
+	i2c_node = of_get_parent(np);
+	i2c_bus = of_alias_get_id(i2c_node, "i2c");
+	i2c_adap1 = i2c_get_adapter(i2c_bus);
+	i2c_dev = i2c_new_device(i2c_adap1, &pmic_info);
+	if (NULL == i2c_dev) {
+		printk("No pmic devices found\n");
+		for(;;);
+	}
+
+	i2c_dev->addr = i2c_addr;
+	i2c_smbus_write_byte_data(i2c_dev, 0x22, 0x00);
+	for(;;);
+}
+
+void ambarella_power_off_prepare(void)
+{
+
+}
+
+static int __init ambarella_init_pm(void)
+{
+	pm_power_off = ambarella_power_off;
+	pm_power_off_prepare = ambarella_power_off_prepare;
+
+	return 0;
+}
+
+arch_initcall(ambarella_init_pm);
