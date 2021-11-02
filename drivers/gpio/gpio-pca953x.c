@@ -987,7 +987,7 @@ static int pca953x_probe(struct i2c_client *client,
 	struct pca953x_chip *chip;
 	int irq_base = 0;
 	int ret;
-	u32 invert = 0;
+	u32 invert = 0, tempu32;
 	struct regulator *reg;
 	const struct regmap_config *regmap_config;
 
@@ -1049,6 +1049,13 @@ static int pca953x_probe(struct i2c_client *client,
 		}
 
 		chip->driver_data = (uintptr_t)match;
+	}
+
+	chip->gpio_chip.parent = &chip->client->dev;
+	if (chip->gpio_chip.parent) {
+		if (of_property_read_u32(chip->gpio_chip.parent->of_node, "gpio-base", &tempu32) == 0) {
+			chip->gpio_start = tempu32;
+		}
 	}
 
 	i2c_set_clientdata(client, chip);
