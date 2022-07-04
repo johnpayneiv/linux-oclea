@@ -750,6 +750,7 @@
 /* ==========================================================================*/
 
 #define	POC_ETH_IS_ENABLED		0x00000001
+#define	POC_ETH_RMII_MODE		0x00100000
 
 #if (CHIP_REV == S2L) || (CHIP_REV == S3) || (CHIP_REV == S3L)
 #define	POC_PERIPHERAL_CLK_MODE		0x00000000

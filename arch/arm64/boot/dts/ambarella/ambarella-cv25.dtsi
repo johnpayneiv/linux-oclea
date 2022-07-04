@@ -862,6 +862,20 @@
 						   0xba005b 0xba005c 0xba005d 0xba005e>;
 			};
 
+			vin_sync_pins: vin_sync@0 {
+				reg = <0>;
+				amb,pinmux-ids = <0x1055 0x1056>;
+			};
+
+			pip_sync_pins_a: pip_sync@0 {
+				reg = <0>;
+				amb,pinmux-ids = <0x2055 0x2056>;
+			};
+
+			pip_sync_pins_b: pip_sync@1 {
+				reg = <1>;
+				amb,pinmux-ids = <0x205B 0x205C>;
+			};
 		};
 	};
 
@@ -911,6 +925,7 @@
 			clocks = <&gclk_sd>;
 			amb,rct-regmap = <&rct_syscon 0x4c0 0x4c4 0x664 0x4f0 0>;
 			amb,tuning-tx-clk = <0>;
+			amb,latctrl = <0x2>;
 			max-frequency = <120000000>;
 			bus-width = <8>;
 			cap-sdio-irq;
@@ -930,6 +945,7 @@
 			clocks = <&gclk_sdxc>;
 			amb,rct-regmap = <&rct_syscon 0x4c8 0x4cc 0x668 0x4f0 16>;
 			amb,tuning-tx-clk = <0>;
+			amb,latctrl = <0x2>;
 			max-frequency = <120000000>;
 			bus-width = <4>;
 			cap-sdio-irq;
@@ -946,6 +962,7 @@
 			pinctrl-names = "default";
 			pinctrl-0 = <&sdmmc2_pins_4bit &sdmmc2_cd_pin &sdmmc2_wp_pin>;
 			clocks = <&gclk_sdio>;
+			amb,latctrl = <0x2>;
 			max-frequency = <96000000>;
 			bus-width = <4>;
 			cap-sdio-irq;
@@ -1263,6 +1280,11 @@
 		reboot {
 			compatible = "ambarella,reboot";
 			amb,rct-regmap = <&rct_syscon>;
+		};
+
+		pip_sync: pip_sync@ed080574{
+			compatible = "ambarella,pipsync", "syscon";
+			reg = <0xed080574 0x4>;
 		};
 	};
 
@@ -1790,6 +1812,19 @@
 			clock-output-names = "gclk_ssi3";
 			amb,div-width = <24>;
 			amb,div-shift = <0>;
+		};
+
+		gclk_so_pip: gclk-so-pip { /* for pip master sync */
+			#clock-cells = <0>;
+			compatible = "ambarella,div-clock";
+			clocks = <&pll_out_enet>;
+			clock-output-names = "gclk_so_pip";
+			assigned-clocks = <&gclk_so_pip>;
+			assigned-clock-rates = <30000000>;
+			amb,div-regmap = <&pip_sync 0>;
+			amb,div-width = <4>;
+			amb,div-shift = <4>;
+			amb,div-plus;
 		};
 	};
 };

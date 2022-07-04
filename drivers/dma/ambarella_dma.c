@@ -613,6 +613,7 @@ static int ambdma_get_bytes_left(struct dma_chan *chan, dma_cookie_t cookie)
 	phys_addr_t desc_phys;
 	unsigned long flags;
 	size_t count = 0, trials;
+	ktime_t timeout;
 
 	spin_lock_irqsave(&amb_chan->lock, flags);
 
@@ -646,6 +647,8 @@ static int ambdma_get_bytes_left(struct dma_chan *chan, dma_cookie_t cookie)
 		 * DMA transfer is paused, RX overruns or TX underruns are more
 		 * likey to occur depending on the system latency.
 		 */
+		timeout = ktime_add_ms(ktime_get(), 100);
+again:
 		for (trials = 0; trials < AMBARELLA_MAX_DESC_TRIALS; trials++) {
 			desc_phys = readl(dma_chan_da_reg(amb_chan));
 
@@ -657,6 +660,15 @@ static int ambdma_get_bytes_left(struct dma_chan *chan, dma_cookie_t cookie)
 			if (likely(desc_phys == readl(dma_chan_da_reg(amb_chan))))
 				break;
 		}
+
+               if(first->lli->attr & DMA_DESC_EOC) {
+                       if(count > first->lli->xfr_count) {
+                               if(ktime_after(ktime_get(), timeout))
+                                       WARN_ON(ktime_after(ktime_get(), timeout));
+                               else
+                                       goto again;
+                       }
+               }
 
 		if (unlikely(trials >= AMBARELLA_MAX_DESC_TRIALS)) {
 			spin_unlock_irqrestore(&amb_chan->lock, flags);

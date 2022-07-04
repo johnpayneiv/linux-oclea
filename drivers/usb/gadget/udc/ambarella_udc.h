@@ -28,6 +28,8 @@ USB device controller on Ambarella processors
 #ifndef _AMBARELLA_UDC_H
 #define _AMBARELLA_UDC_H
 
+#define USB_TXFIFO_DEPTH		(64 / 4 + 4 * 512 / 4)	// 528 32-bit
+
 #define CTRL_IN			0
 #define CTRL_OUT		16
 
@@ -130,6 +132,7 @@ struct ambarella_ep {
 					dma_going : 1;
 
 	unsigned int frame_offset;  /* iso frame num offset */
+	unsigned int frame_interval;  /* iso frame num interval */
 
 	dma_addr_t			dummy_desc_addr;
 	struct ambarella_data_desc	*dummy_desc;

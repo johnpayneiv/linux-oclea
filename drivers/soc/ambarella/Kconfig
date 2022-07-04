@@ -9,3 +9,14 @@ config AMBARELLA_SUPPORT_GDMA
 	help
 	  Say y here to enable gdma
 
+config RPMSG_AMBARELLA_VIRTIO
+	tristate "Ambarella RPMSG VirtIO"
+	depends on ARCH_AMBARELLA
+	select RPMSG
+	select RPMSG_VIRTIO
+	select RPMSG_CHAR
+	select VIDEOBUF2_DMA_CONTIG
+	select MEDIA_SUPPORT
+	help
+	  Say Y here to support Ambarella RPMSG
+

@@ -49,17 +49,6 @@ config RPMSG_QCOM_SMD
 	  providing communication channels to remote processors in Qualcomm
 	  platforms.
 
-config RPMSG_AMBARELLA
-	tristate "Ambarella RPMSG"
-	depends on ARCH_AMBARELLA
-	select RPMSG
-	select RPMSG_VIRTIO
-	select RPMSG_CHAR
-	select VIDEOBUF2_DMA_CONTIG
-	select MEDIA_SUPPORT
-	help
-	  Say Y here to support Ambarella rpmsg
-
 config RPMSG_VIRTIO
 	tristate "Virtio RPMSG bus driver"
 	depends on HAS_DMA

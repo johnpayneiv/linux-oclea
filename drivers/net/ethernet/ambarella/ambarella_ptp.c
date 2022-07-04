@@ -480,6 +480,8 @@ int ambeth_ptp_init(struct platform_device *pdev)
 
 	lp->clk_ptp_rate = clk_get_rate(clk);
 
+	devm_clk_put(&pdev->dev, clk);
+
 	lp->pps_avail = !!of_find_property(np, "amb,pps-avail", NULL);
 	if (lp->pps_avail) {
 		lp->ptp_clk_ops.n_per_out = 1;	/* there is pps output */
@@ -506,6 +508,12 @@ int ambeth_ptp_init(struct platform_device *pdev)
 	dev_info(&pdev->dev, "ambarella ptp clock register.\n");
 
 	return 0;
+}
+
+void ambeth_ptp_exit(struct ambeth_info *priv)
+{
+	if (priv->ptp_clk)
+		ptp_clock_unregister(priv->ptp_clk);
 }
 
 void ambeth_get_rx_hwtstamp(struct ambeth_info *lp, struct sk_buff *skb,

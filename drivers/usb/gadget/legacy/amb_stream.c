@@ -48,7 +48,7 @@
 #include <linux/cdev.h>
 #include <linux/fs.h>
 #include <linux/module.h>
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 
 //#include <mach/hardware.h>
 
@@ -1075,13 +1075,10 @@ exit:
 static void amb_reset_config (struct amb_dev *dev)
 {
 	struct usb_request *req;
-	unsigned long flags;
 
 	if (dev->config == 0)
 		return;
 	dev->config = 0;
-
-	spin_lock_irqsave(&dev->lock, flags);
 
 	/* free write requests on the free list */
 	while(!list_empty(&dev->in_idle_list)) {
@@ -1107,7 +1104,6 @@ static void amb_reset_config (struct amb_dev *dev)
 		amb_free_buf_req(dev->out_ep, req);
 	}
 
-	spin_unlock_irqrestore(&dev->lock, flags);
 	/* just disable endpoints, forcing completion of pending i/o.
 	 * all our completion handlers free their requests in this case.
 	 */
@@ -1185,7 +1181,8 @@ autoconf_fail:
 	ss_intr_in_desc.bEndpointAddress = fs_intr_in_desc.bEndpointAddress;
 
 	ret = usb_assign_descriptors(f, fs_amb_data_stream_function,
-				hs_amb_data_stream_function, ss_amb_data_stream_function);
+				hs_amb_data_stream_function, ss_amb_data_stream_function,
+				ss_amb_data_stream_function);
 	if (ret)
 		goto fail;
 

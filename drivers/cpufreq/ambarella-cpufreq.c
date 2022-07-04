@@ -33,6 +33,7 @@
 #include <linux/slab.h>
 #include <linux/platform_device.h>
 #include <linux/clocksource.h>
+#include <soc/ambarella/ambarella_scm.h>
 
 /*
  * On Ambarella platforms, core clock is recommended to be adjusted on the fly
@@ -124,6 +125,8 @@ static int ambarella_cpufreq_set_target(struct cpufreq_policy *policy,
 
 	old_freq = clk_get_rate(policy->clk) / 1000;
 	new_freq = table[index].frequency;
+	if (new_freq == 0)
+		return -EINVAL;
 
 	freqs.old = old_freq;
 	freqs.new = new_freq;
@@ -277,6 +280,10 @@ static int ambarella_cpufreq_probe(struct platform_device *pdev)
 	if (amb_cpufreq->cpufreq_mask & CPUFREQ_CORTEX_MASK) {
 		/* notify to adjust the frequency of arm timer */
 		if (!of_find_property(np, "amb,timer-freq-adjust-off", NULL)) {
+			if (!ambarella_smc_deployed()) {
+				pr_err(" No Way to update ARM64_cntfrq \n");
+				return -EINVAL;
+			}
 			amb_cpufreq->clksrc_nb.notifier_call = ambarella_clksrc_nb_callback;
 			amb_cpufreq->clksrc_nb.next = NULL;
 			clk_notifier_register(amb_cpufreq->clk[0], &amb_cpufreq->clksrc_nb);

@@ -85,15 +85,15 @@ struct ambeth_rng_info {
 };
 
 struct ambeth_tx_rngmng {
-	unsigned int			cur_tx;
-	unsigned int			dirty_tx;
+	unsigned long long		cur_tx;
+	unsigned long long		dirty_tx;
 	struct ambeth_rng_info		*rng_tx;
 	struct ambeth_desc		*desc_tx;
 };
 
 struct ambeth_rx_rngmng {
-	unsigned int			cur_rx;
-	unsigned int			dirty_rx;
+	unsigned long long		cur_rx;
+	unsigned long long		dirty_rx;
 	struct ambeth_rng_info		*rng_rx;
 	struct ambeth_desc		*desc_rx;
 };
@@ -153,6 +153,29 @@ struct ambeth_info {
 	u32				msg_enable;
 	u32				bfsize;
 
+	u32				nis_rx;
+	u32				nis_tx;
+	u32				nis_tx_buf_unavail;
+	u32				ais_tx_stopped;
+	u32				ais_tx_jabber_timeout;
+	u32				ais_rx_overflow;
+	u32				ais_tx_underflow;
+	u32				ais_rx_buf_unavail;
+	u32				ais_rx_stopped;
+	u32				ais_rx_wdt_timeout;
+	u32				ais_early_tx;
+	u32				ais_fatal_error;
+
+
+
+
+
+	struct completion		comp;
+	void				(*selftest_callback)(struct sk_buff *skb, struct net_device *ndev);
+	bool				selftest_ok;
+	void				*selftest_rx_data;
+	int				selftest_rx_len;
+
 	u32				mdio_gpio: 1,
 					enhance: 1,
 					second_ref_clk_50mhz : 1,
@@ -165,6 +188,7 @@ struct ambeth_info {
 					dump_rx : 1,
 					dump_rx_free : 1,
 					ahb_mdio_clk_div: 4,
+					loopback:1,
 					dump_rx_all : 1;
 
 };
@@ -222,9 +246,17 @@ struct ambeth_mac_pps_cfg {
 int ambeth_set_hwtstamp(struct net_device *dev, struct ifreq *ifr);
 int ambeth_get_ts_info(struct net_device *dev, struct ethtool_ts_info *info);
 int ambeth_ptp_init(struct platform_device *pdev);
+void ambeth_ptp_exit(struct ambeth_info *priv);
 void ambeth_get_rx_hwtstamp(struct ambeth_info *lp, struct sk_buff *skb,
 		struct ambeth_desc *desc);
 void ambeth_get_tx_hwtstamp(struct ambeth_info *lp, struct sk_buff *skb,
 		struct ambeth_desc *desc);
 void ambeth_tx_hwtstamp_enable(struct ambeth_info *lp, u32 *flags);
+
+void ambeth_self_test(struct net_device *dev, struct ethtool_test *etest, u64 *buf);
+int ambeth_get_sset_count(struct net_device *netdev, int sset);
+void ambeth_get_strings(struct net_device *netdev, u32 stringset, u8 *data);
+void ambeth_get_ethtool_stats(struct net_device *netdev,
+	struct ethtool_stats *stats, u64 *data);
+void ambeth_interrupt_statis(struct ambeth_info *priv, u32 irq_status);
 #endif

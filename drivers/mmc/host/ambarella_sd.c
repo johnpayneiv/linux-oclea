@@ -102,6 +102,7 @@ struct ambarella_mmc_host {
 	int				invert_dll_clk;
 	u32				phy_timing[4];
 	u32				timing_reg_num;
+	u32				latctrl;
 	bool				auto_cmd12;
 	bool				force_v18;
 	bool				tuning_fixed_clk_freq;
@@ -315,6 +316,9 @@ static void ambarella_sd_reset_all(struct ambarella_mmc_host *host)
 		SD_EISEN_CMD_CRC_ERR | 	SD_EISEN_CMD_TMOUT_ERR;
 
 	ambarella_sd_enable_irq(host, (eis << 16) | nis);
+
+	if(host->latctrl)
+		writel_relaxed(host->latctrl, host->regbase + SD_LAT_CTRL_OFFSET);
 
 	if(host->timing_reg_num == 4) {
 		writel_relaxed(host->phy_timing[0], host->regbase + SD_LAT_CTRL_OFFSET);
@@ -1054,7 +1058,7 @@ retry_dll_clk:
 	tmp = ((((best_s + best_e) / 2) >> 5) << 1) | SD_PHY_SBC_DEFAULT_VALUE;
 	vfine = ambarella_sd_set_dll(host, tmp);
 
-	if((best_s >> 5) + 2 >= (best_e >> 5)){
+	if((best_s >> 5) + 2 <= (best_e >> 5)){
 		/* start and end cross at least one full 32 length range */
 		best_s = 0;
 		best_e = 31;
@@ -1398,6 +1402,9 @@ static int ambarella_sd_of_parse(struct ambarella_mmc_host *host)
 		of_property_read_u32_array(np, "amb,phy-timing", host->phy_timing, 3);
 	else
 		host->timing_reg_num = 0;
+
+	if (of_property_read_u32(np, "amb,latctrl", &host->latctrl) < 0)
+		host->latctrl = 0;
 
 	if (of_property_read_bool(np, "amb,have-led"))
 		host->have_led = true;
