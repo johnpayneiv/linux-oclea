@@ -63,6 +63,7 @@ static int ambarella_dmic_clock(struct amb_dmic_priv *priv_data, u32 mclk, u32 r
 {
 	u32 dec_factor0 = 31, dec_factor1 = 1, dec_fs, fdiv;
 	u32 val;
+	u32 left_phase, right_phase;
 
 	dec_fs = priv_data->mclk/rate -1;
 	fdiv = (dec_fs + 1) / ((dec_factor0 + 1) * (dec_factor1 + 1));
@@ -71,8 +72,11 @@ static int ambarella_dmic_clock(struct amb_dmic_priv *priv_data, u32 mclk, u32 r
 	writel_relaxed(dec_fs, priv_data->regbase + DECIMATION_FACTOR_OFFSET);
 	writel_relaxed(fdiv, priv_data->regbase + DMIC_CLK_DIV_OFFSET);
 
-	val = (1 << 16) | 0x3;
-	/* set the phase for left and right channel, use 0x01(left) and 0x03(right) as stereo default */
+	left_phase = fdiv/4;
+	right_phase = fdiv - fdiv/4;
+	val = (left_phase << 16) | right_phase;
+
+	/* set the phase for left and right channel, according to the record parameter */
 	writel_relaxed(val, priv_data->regbase + DMIC_DATA_PHASE_OFFSET);
 
 	return 0;

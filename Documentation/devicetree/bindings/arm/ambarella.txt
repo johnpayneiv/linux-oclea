@@ -666,6 +666,8 @@ Optional properties:
   servicing.
 - amb,have-led: if use led-gpios property, this property must be set; Note if there
   is no gpio control led to indicate status, please donot specify this property.
+- amb,latctrl: if this property is set, read latency control register will be set to this
+  value except hs200 mode.
 
 iii) Example
 -----------

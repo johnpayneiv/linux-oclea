@@ -20,7 +20,7 @@
 #include <linux/slab.h>
 #include <linux/of.h>
 #include <linux/freezer.h>
-#include "ambarella_scm.h"
+#include <soc/ambarella/ambarella_scm.h>
 
 static int ambarella_scm_query(void)
 {
@@ -198,26 +198,40 @@ int ambarella_otp_get_uuid(u32 *uuidbuf)
 EXPORT_SYMBOL(ambarella_otp_get_uuid);
 
 /* ---------------------------------------------------------------------------- */
-
-int __init ambarella_scm_init(void)
+static int smc_code_avail = -1;
+int ambarella_smc_deployed(void)
 {
-
 	int len;
 	const char *method;
 	struct device_node *node;
 
+	if (smc_code_avail >= 0)
+		return smc_code_avail;
+
 	node = of_find_node_by_name(NULL, "psci");
-	if (node == NULL)
-		return 0;
+	if (!node) {
+		smc_code_avail  = 0;
+		return smc_code_avail;
+	}
 
 	method = of_get_property(node, "method", &len);
 	if (method == NULL) {
-		pr_err("'method' property is not found.\n");
-		return 0;
+		smc_code_avail = 0;
+		return smc_code_avail;
 	}
 
-	/* if psci method is set as spin table, return to not access smc */
 	if (strncmp(method, "smc", 3))
+		smc_code_avail = 0;
+	else
+		smc_code_avail = 1;
+
+	return smc_code_avail;
+}
+EXPORT_SYMBOL_GPL(ambarella_smc_deployed);
+
+int __init ambarella_scm_init(void)
+{
+	if (!ambarella_smc_deployed())
 		return 0;
 
 	BUG_ON(ambarella_scm_query() != ARM_SMCCC_SMC_64);

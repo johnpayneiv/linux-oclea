@@ -1418,6 +1418,9 @@
 			amb,extra-pre-scaler;
 			amb,frac-mode;
 			amb,max-vco = <1800000000>;
+			/* freq_kHz pre_scaler ctrl ctrl2 ctr3 post_scaler */
+			/* amb,set-from-dts = */
+				/* <148500 1 0x30170008 0x80000000 0x30520000 0x88006 1>; */
 		};
 
 		gclk_audio_aux: gclk-audio-aux {

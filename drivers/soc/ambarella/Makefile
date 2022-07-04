@@ -18,5 +18,6 @@
 
 obj-y += init_misc.o iav_helper.o event.o ambsyncproc.o
 
-obj-$(CONFIG_AMBARELLA_SUPPORT_GDMA) += gdma.o
+obj-$(CONFIG_AMBARELLA_SUPPORT_GDMA)	+= gdma.o
+obj-$(CONFIG_RPMSG_AMBARELLA_VIRTIO)	+= rpmsg_virtio.o rpmsg_iodev.o
 

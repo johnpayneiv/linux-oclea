@@ -29,6 +29,9 @@
 
 #include "sdhci-pltfm.h"
 
+#define BOUNDARY_OK(addr, len) \
+	((addr | (SZ_128M - 1)) == ((addr + len - 1) | (SZ_128M - 1)))
+
 struct sdhci_ambarella_host {
 	struct gpio_desc *power_gpio;
 	struct gpio_desc *v18_gpio;
@@ -112,6 +115,29 @@ unsigned int sdhci_ambarella_get_min_clock(struct sdhci_host *host)
 	return 400000;
 }
 
+/*
+ * If DMA addr spans 128MB boundary, we split the DMA transfer into two
+ * so that each DMA transfer doesn't exceed the boundary.
+ */
+static void sdhci_ambarella_adma_write_desc(struct sdhci_host *host, void **desc,
+				    dma_addr_t addr, int len, unsigned int cmd)
+{
+	int tmplen, offset;
+
+	if (likely(!len || BOUNDARY_OK(addr, len))) {
+		sdhci_adma_write_desc(host, desc, addr, len, cmd);
+		return;
+	}
+
+	offset = addr & (SZ_128M - 1);
+	tmplen = SZ_128M - offset;
+	sdhci_adma_write_desc(host, desc, addr, tmplen, cmd);
+
+	addr += tmplen;
+	len -= tmplen;
+	sdhci_adma_write_desc(host, desc, addr, len, cmd);
+}
+
 static struct sdhci_ops sdhci_ambarella_ops = {
 	.set_clock = sdhci_ambarella_set_clock,
 	.set_power = sdhci_ambarella_set_power,
@@ -120,6 +146,7 @@ static struct sdhci_ops sdhci_ambarella_ops = {
 	.set_bus_width = sdhci_set_bus_width,
 	.reset = sdhci_reset,
 	.set_uhs_signaling = sdhci_set_uhs_signaling,
+	.adma_write_desc	= sdhci_ambarella_adma_write_desc,
 };
 
 static const struct sdhci_pltfm_data sdhci_ambarella_pdata = {

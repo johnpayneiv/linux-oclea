@@ -73,14 +73,21 @@
 #define AMBA_SIP_VP_CONFIG			0x9
 #define AMBA_SIP_VP_CONFIG_RESET		0x1
 
+/* cpufreq under secure-boot */
+#define AMBA_SIP_SECURITY_CPUFREQ		0xA
+
 /* XXX svc ID 0xff */
 #define AMBA_SCM_SVC_QUERY			0xff
 #define AMBA_SCM_QUERY_COUNT			0x00
 #define AMBA_SCM_QUERY_UID			0x01
 #define AMBA_SCM_QUERY_VERSION			0x03
+#define AMBA_SCM_QUERY_SECURE_BOOT		0x04
 
 #define	SVC_SCM_FN(s, f)			((((s) & 0xff) << 8) | ((f) & 0xff))
 
 #define SVC_OF_SMC(c)				(((c) >> 8) & 0xff)
 #define FNID_OF_SMC(c)				((c) & 0xff)
+
+extern int ambarella_smc_deployed(void);
+
 #endif

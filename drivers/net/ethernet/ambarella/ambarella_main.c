@@ -125,7 +125,7 @@ static void ambhw_dump(struct ambeth_info *lp)
 
 	dirty_diff = (lp->rx.cur_rx - lp->rx.dirty_rx);
 	entry = (lp->rx.cur_rx % lp->rx_count);
-	dev_info(&lp->ndev->dev, "RX Info: cur_rx[%u], dirty_rx[%u],"
+	dev_info(&lp->ndev->dev, "RX Info: cur_rx[%llu], dirty_rx[%llu],"
 		" diff[%u], entry[%u].\n", lp->rx.cur_rx, lp->rx.dirty_rx,
 		dirty_diff, entry);
 	for (i = 0; i < lp->rx_count; i++) {
@@ -136,7 +136,7 @@ static void ambhw_dump(struct ambeth_info *lp)
 	}
 	dirty_diff = (lp->tx.cur_tx - lp->tx.dirty_tx);
 	entry = (lp->tx.cur_tx % lp->tx_count);
-	dev_info(&lp->ndev->dev, "TX Info: cur_tx[%u], dirty_tx[%u],"
+	dev_info(&lp->ndev->dev, "TX Info: cur_tx[%llu], dirty_tx[%llu],"
 		" diff[%u], entry[%u].\n", lp->tx.cur_tx, lp->tx.dirty_tx,
 		dirty_diff, entry);
 	for (i = 0; i < lp->tx_count; i++) {
@@ -911,12 +911,6 @@ static int ambeth_phy_start(struct ambeth_info *lp)
 		break;
 	}
 
-	ret_val = phy_connect_direct(ndev, phydev, &ambeth_adjust_link, lp->intf_type);
-	if (ret_val) {
-		dev_err(&lp->ndev->dev, "Could not attach to PHY!\n");
-		goto ambeth_init_phy_exit;
-	}
-
 	ethtool_convert_legacy_u32_to_link_mode(mask, lp->phy_supported);
 
 	linkmode_and(phydev->supported, phydev->supported, mask);
@@ -1306,7 +1300,7 @@ static inline void ambeth_interrupt_tx(struct ambeth_info *lp, u32 irq_status)
 	u32 status;
 
 	if (irq_status & AMBETH_TXDMA_STATUS) {
-		dev_vdbg(&lp->ndev->dev, "cur_tx[%u], dirty_tx[%u], 0x%x.\n",
+		dev_vdbg(&lp->ndev->dev, "cur_tx[%llu], dirty_tx[%llu], 0x%x.\n",
 			lp->tx.cur_tx, lp->tx.dirty_tx, irq_status);
 		dirty_diff = (lp->tx.cur_tx - lp->tx.dirty_tx);
 		for (i = 0; i < dirty_diff; i++) {
@@ -1364,7 +1358,7 @@ static inline void ambeth_interrupt_tx(struct ambeth_info *lp, u32 irq_status)
 			ambhw_dma_tx_poll(lp);
 		}
 
-		dev_vdbg(&lp->ndev->dev, "cur_tx[%u], dirty_tx[%u], 0x%x.\n",
+		dev_vdbg(&lp->ndev->dev, "cur_tx[%llu], dirty_tx[%llu], 0x%x.\n",
 			lp->tx.cur_tx, lp->tx.dirty_tx, irq_status);
 	}
 }
@@ -1389,6 +1383,8 @@ static irqreturn_t ambeth_interrupt(int irq, void *dev_id)
 	writel(irq_status, lp->regbase + ETH_DMA_STATUS_OFFSET);
 	spin_unlock_irqrestore(&lp->lock, flags);
 
+	ambeth_interrupt_statis(lp, irq_status);
+
 	return IRQ_HANDLED;
 }
 
@@ -1399,8 +1395,6 @@ static int ambeth_start_hw(struct net_device *ndev)
 	unsigned long flags;
 
 	lp = (struct ambeth_info *)netdev_priv(ndev);
-
-	ambeth_phy_init(lp);
 
 	spin_lock_irqsave(&lp->lock, flags);
 	ret_val = ambhw_enable(lp);
@@ -1511,9 +1505,23 @@ static int ambeth_open(struct net_device *ndev)
 
 	lp = (struct ambeth_info *)netdev_priv(ndev);
 
+	if (!lp->phydev)
+		return -EIO;
+
+	/* Hardare reset PHY device */
+	ambeth_phy_init(lp);
+
+	/* Connect , reset and init PHY device */
+	ret_val = phy_connect_direct(ndev, lp->phydev,
+			&ambeth_adjust_link, lp->intf_type);
+	if (ret_val) {
+		dev_err(&lp->ndev->dev, "Could not attach to PHY!\n");
+		return ret_val;
+	}
+
 	ret_val = ambeth_start_hw(ndev);
 	if (ret_val)
-		goto ambeth_open_exit;
+		goto ambeth_open_err0;
 
 	ret_val = request_irq(ndev->irq, ambeth_interrupt,
 		IRQF_SHARED | IRQF_TRIGGER_HIGH, ndev->name, ndev);
@@ -1521,7 +1529,7 @@ static int ambeth_open(struct net_device *ndev)
 		if (netif_msg_drv(lp))
 			dev_err(&lp->ndev->dev,
 			"Request_irq[%d] fail.\n", ndev->irq);
-		goto ambeth_open_exit;
+		goto ambeth_open_err0;
 	}
 
 	napi_enable(&lp->napi);
@@ -1530,19 +1538,20 @@ static int ambeth_open(struct net_device *ndev)
 
 	netif_carrier_off(ndev);
 	ret_val = ambeth_phy_start(lp);
-	if (ret_val) {
-		netif_stop_queue(ndev);
-		napi_disable(&lp->napi);
-		free_irq(ndev->irq, ndev);
-	}
+	if (ret_val)
+		goto ambeth_open_err1;
 
-	if (lp->phydev)
-		phy_start(lp->phydev);
+	phy_start(lp->phydev);
 
-ambeth_open_exit:
-	if (ret_val) {
-		ambeth_stop_hw(ndev);
-	}
+	return 0;
+
+ambeth_open_err1:
+	netif_stop_queue(ndev);
+	napi_disable(&lp->napi);
+	free_irq(ndev->irq, ndev);
+
+ambeth_open_err0:
+	ambeth_stop_hw(ndev);
 
 	return ret_val;
 }
@@ -1552,17 +1561,18 @@ static int ambeth_stop(struct net_device *ndev)
 	struct ambeth_info *lp = netdev_priv(ndev);
 	int ret_val = 0;
 
-	if (lp->phydev) {
-		phy_stop(lp->phydev);
-		phy_disconnect(lp->phydev);
-	}
+	if (!lp->phydev)
+		return -EIO;
+
+	netif_carrier_off(ndev);
+	phy_stop(lp->phydev);
+	phy_disconnect(lp->phydev);
+	ambeth_phy_stop(lp);
+	ambeth_stop_hw(ndev);
 
 	netif_tx_disable(ndev);
 	napi_disable(&lp->napi);
 	free_irq(ndev->irq, ndev);
-	ambeth_phy_stop(lp);
-	netif_carrier_off(ndev);
-	ambeth_stop_hw(ndev);
 
 	return ret_val;
 }
@@ -1660,7 +1670,7 @@ static int ambeth_hard_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 #if 0 /* linux-4.8 use netdev_queue->trans_start instead */
 	ndev->trans_start = jiffies;
 #endif
-	dev_vdbg(&lp->ndev->dev, "TX Info: cur_tx[%u], dirty_tx[%u], "
+	dev_vdbg(&lp->ndev->dev, "TX Info: cur_tx[%llu], dirty_tx[%llu], "
 		"entry[%u], len[%u], data_len[%u], ip_summed[%u], "
 		"csum_start[%u], csum_offset[%u].\n",
 		lp->tx.cur_tx, lp->tx.dirty_tx, entry, skb->len, skb->data_len,
@@ -1918,11 +1928,16 @@ static inline void ambeth_napi_rx(struct ambeth_info *lp, u32 status, u32 entry,
 				(skb->len + 14));
 		}
 
-		/* Fragment packet is not implemented, drop it */
-		if (unlikely(fragment) || unlikely(lp->dump_rx_free))
+		if (unlikely(lp->loopback && lp->selftest_callback)) {
+			lp->selftest_callback(skb, lp->ndev);
 			kfree_skb(skb);
-		else
-			netif_receive_skb(skb);
+		} else {
+			/* Fragment packet is not implemented, drop it */
+			if (unlikely(fragment) || unlikely(lp->dump_rx_free))
+				kfree_skb(skb);
+			else
+				netif_receive_skb(skb);
+		}
 
 		lp->rx.rng_rx[entry].skb = NULL;
 		lp->rx.rng_rx[entry].mapping = 0;
@@ -1949,10 +1964,13 @@ int ambeth_napi(struct napi_struct *napi, int budget)
 	bool fragment = false;
 
 	lp = container_of(napi, struct ambeth_info, napi);
-	dev_vdbg(&lp->ndev->dev, "cur_rx[%u], dirty_rx[%u]\n",
+	dev_vdbg(&lp->ndev->dev, "cur_rx[%llu], dirty_rx[%llu]\n",
 		lp->rx.cur_rx, lp->rx.dirty_rx);
 
-	if (unlikely(!netif_carrier_ok(lp->ndev)))
+	/*
+	 * Continue, even though carrier is off if loopback is enabled.
+	 */
+	if (unlikely(!netif_carrier_ok(lp->ndev) && !lp->loopback))
 		goto ambeth_poll_complete;
 
 	while (rx_budget > 0) {
@@ -1968,7 +1986,9 @@ int ambeth_napi(struct napi_struct *napi, int budget)
 		if (likely((status & ETH_RDES0_ES) != ETH_RDES0_ES)) {
 			ambeth_napi_rx(lp, status, entry, fragment);
 		} else {
+			spin_lock_irqsave(&lp->lock, flags);
 			ambhw_dma_rx_stop(lp);
+			spin_unlock_irqrestore(&lp->lock, flags);
 			ambeth_check_rdes0_status(lp, status, entry);
 			rx_budget += lp->rx_count;
 			lp->rx.cur_rx++;
@@ -1996,7 +2016,7 @@ ambeth_poll_complete:
 		spin_unlock_irqrestore(&lp->lock, flags);
 	}
 
-	dev_vdbg(&lp->ndev->dev, "cur_rx[%u], dirty_rx[%u], rx_budget[%u]\n",
+	dev_vdbg(&lp->ndev->dev, "cur_rx[%llu], dirty_rx[%llu], rx_budget[%u]\n",
 		lp->rx.cur_rx, lp->rx.dirty_rx, rx_budget);
 	return (budget - rx_budget);
 }
@@ -2378,6 +2398,10 @@ static const struct ethtool_ops ambeth_ethtool_ops = {
 	.get_link_ksettings	= phy_ethtool_get_link_ksettings,
 	.set_link_ksettings	= phy_ethtool_set_link_ksettings,
 	.get_ts_info		= ambeth_get_ts_info,
+	.self_test		= ambeth_self_test,
+	.get_sset_count		= ambeth_get_sset_count,
+	.get_strings		= ambeth_get_strings,
+	.get_ethtool_stats	= ambeth_get_ethtool_stats,
 };
 
 /* ==========================================================================*/
@@ -2443,6 +2467,9 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 	} else if (ENET_CTRL_OFFSET != RCT_INVALID_OFFSET) {
 		switch (lp->intf_type) {
 		case PHY_INTERFACE_MODE_RGMII:
+		case PHY_INTERFACE_MODE_RGMII_ID:
+		case PHY_INTERFACE_MODE_RGMII_RXID:
+		case PHY_INTERFACE_MODE_RGMII_TXID:
 			mask = ENET_SEL | ENET_PHY_INTF_SEL_RMII;
 			val = ENET_SEL;
 			break;
@@ -2463,34 +2490,58 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 	} else {
 		regmap_read(lp->reg_rct, SYS_CONFIG_OFFSET, &val);
 		if (!(val & POC_ETH_IS_ENABLED)) {
-			dev_err(dev, "Not enabled, check POC!\n");
-			return -ENODEV;
+			dev_warn(dev, "Ethernet is not enabled by POC, force enable it!\n");
+			regmap_update_bits(lp->reg_rct, SYS_CONFIG_OFFSET, POC_ETH_IS_ENABLED, POC_ETH_IS_ENABLED);
 		}
 
-		/* sanity check */
-		hw_intf = readl(lp->regbase + ETH_DMA_HWFEA_OFFSET);
-		hw_intf &= ETH_DMA_HWFEA_ACTPHYIF_MASK;
-
-		switch (lp->intf_type) {
-		case PHY_INTERFACE_MODE_GMII:
-		case PHY_INTERFACE_MODE_MII:
-			ret_val = (hw_intf == ETH_DMA_HWFEA_ACTPHYIF_GMII) ? 0 : -1;
-			break;
+		switch(lp->intf_type) {
 		case PHY_INTERFACE_MODE_RGMII:
-			ret_val = (hw_intf == ETH_DMA_HWFEA_ACTPHYIF_RGMII) ? 0 : -1;
+		case PHY_INTERFACE_MODE_RGMII_ID:
+		case PHY_INTERFACE_MODE_RGMII_RXID:
+		case PHY_INTERFACE_MODE_RGMII_TXID:
+			/* Mode matched */
+			if (!(val & POC_ETH_RMII_MODE))
+				break;
+
+			dev_warn(dev, "Mismatch mode by POC, force switch to RGMII.\n");
+			regmap_update_bits(lp->reg_rct, SYS_CONFIG_OFFSET, POC_ETH_RMII_MODE, 0);
+
+			/* reset MAC if hardware mode is changed */
+			if (ambhw_dma_reset(lp))
+				return -EIO;
+
+			/* sanity check */
+			hw_intf = readl(lp->regbase + ETH_DMA_HWFEA_OFFSET);
+			hw_intf &= ETH_DMA_HWFEA_ACTPHYIF_MASK;
+			if (hw_intf != ETH_DMA_HWFEA_ACTPHYIF_RGMII) {
+				dev_err(dev, "Sanity check error: 0x%x:0x%x\n", hw_intf, lp->intf_type);
+				return -EIO;
+			}
+
 			break;
 		case PHY_INTERFACE_MODE_RMII:
-			ret_val = (hw_intf == ETH_DMA_HWFEA_ACTPHYIF_RMII) ? 0 : -1;
-			break;
-		default:
-			ret_val = -1;
-			break;
-		}
+			if (!(val & POC_ETH_RMII_MODE)) {
+				dev_warn(dev, "Mismatched mode by POC, force switch to RMII.\n");
+				regmap_update_bits(lp->reg_rct, SYS_CONFIG_OFFSET, POC_ETH_RMII_MODE, POC_ETH_RMII_MODE);
 
-		if (ret_val < 0) {
-			dev_err(dev, "PHY interface dismatch: Actual(0x%x):0x%x, Select: 0x%x\n",
-					hw_intf, hw_intf >> 28, lp->intf_type);
-			return -ENODEV;
+				/* reset MAC if hardware mode is changed */
+				if (ambhw_dma_reset(lp))
+					return -EIO;
+
+				/* sanity check */
+				hw_intf = readl(lp->regbase + ETH_DMA_HWFEA_OFFSET);
+				hw_intf &= ETH_DMA_HWFEA_ACTPHYIF_MASK;
+				if (hw_intf != ETH_DMA_HWFEA_ACTPHYIF_RMII) {
+					dev_err(dev, "Sanity check error: 0x%x:0x%x\n", hw_intf, lp->intf_type);
+					return -EIO;
+				}
+			}
+			break;
+		/* MII interface is not supported on S5 and later SoCs */
+		default:
+			dev_err(dev, "Not supported PHY mode %d\n", lp->intf_type);
+			return -ENOTSUPP;
+
 		}
 	}
 
@@ -2613,6 +2664,7 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 	ndev->dev.dma_mask = pdev->dev.dma_mask;
 	ndev->dev.coherent_dma_mask = pdev->dev.coherent_dma_mask;
 
+	init_completion(&lp->comp);
 	spin_lock_init(&lp->lock);
 	lp->ndev = ndev;
 	lp->msg_enable = netif_msg_init(msg_level, NETIF_MSG_DRV);
@@ -2648,6 +2700,7 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 			goto ambeth_drv_probe_free_netdev;
 		}
 		memcpy(&lp->new_bus, bus, sizeof(struct mii_bus));
+		devm_mdiobus_free(&pdev->dev, bus);
 
 		lp->new_bus.name = "Ambarella MDIO Bus";
 		lp->new_bus.read = &ambhw_mdio_read;
@@ -2664,12 +2717,14 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 			lp->new_bus.write = &ambahb_mdio_write;
 		}
 
+		/* Register MDIO bus and scan PHY device */
 		ret_val = of_mdiobus_register(&lp->new_bus, pdev->dev.of_node);
 		if (ret_val < 0) {
 			dev_err(&pdev->dev, "of_mdiobus_register fail%d.\n", ret_val);
 			goto ambeth_drv_probe_free_netdev;
 		}
 
+		/* Detect the PHY */
 		lp->phydev = phy_find_first(&lp->new_bus);
 		if (lp->phydev == NULL) {
 			dev_err(&pdev->dev, "No PHY device.\n");
@@ -2678,10 +2733,12 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 		}
 	}
 
-	if (netif_msg_drv(lp)) {
-		dev_info(&pdev->dev, "%s Ethernet PHY[%d]: 0x%08x!\n",
-				lp->enhance ? "Enhance" : "Normal", lp->phydev->mdio.addr, lp->phydev->phy_id);
-	}
+	if (netif_msg_drv(lp))
+		dev_info(&pdev->dev, "%s Ethernet PHY[%d]: 0x%08x, %s!\n",
+				lp->enhance ? "Enhance" : "Normal",
+				lp->phydev->mdio.addr,
+				lp->phydev->phy_id, lp->phydev->drv ? lp->phydev->drv->name : "Fixed");
+
 	ether_setup(ndev);
 	ndev->netdev_ops = &ambeth_netdev_ops;
 	ndev->watchdog_timeo = AMBETH_TX_WATCHDOG;
@@ -2730,10 +2787,10 @@ static int ambeth_drv_remove(struct platform_device *pdev)
 	struct net_device *ndev = platform_get_drvdata(pdev);
 	struct ambeth_info *lp = netdev_priv(ndev);
 
+	ambeth_ptp_exit(lp);
 	unregister_netdev(ndev);
 	netif_napi_del(&lp->napi);
 	mdiobus_unregister(&lp->new_bus);
-	kfree(lp->new_bus.irq);
 	platform_set_drvdata(pdev, NULL);
 	free_netdev(ndev);
 	dev_notice(&pdev->dev, "Removed.\n");
@@ -2797,6 +2854,12 @@ static int ambeth_drv_resume(struct platform_device *pdev)
 		regmap_update_bits(lp->reg_scr, AHBSP_CTL_OFFSET, 1<<23, 1<<23);
 
 	ambeth_phy_init(lp);
+	ret_val = phy_connect_direct(ndev, lp->phydev,
+			&ambeth_adjust_link, lp->intf_type);
+	if (ret_val) {
+		dev_err(&lp->ndev->dev, "Could not attach to PHY!\n");
+		return ret_val;
+	}
 
 	spin_lock_irqsave(&lp->lock, flags);
 	ret_val = ambhw_enable(lp);

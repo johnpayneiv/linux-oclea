@@ -774,11 +774,33 @@ static void ambarella_patch_iso_desc(struct ambarella_udc *udc,
 	struct ambarella_data_desc *data_desc;
 	u32 current_frame, max_packet_num, i, j;
 
+	/* If it's requested by the IN token,
+	 * we shoud get the real frame number offset from the udc.
+	 * If it's requested by the TX completion,
+	 * we should calculate the frame number offset directly.
+	 * The wrong and discontinuous frame number will
+	 * cause the isoc transmission to fail.
+	 */
 	current_frame = ambarella_udc_get_frame(&udc->gadget);
-	data_desc = req->data_desc;
-	frame_fix += (current_frame + ep->frame_offset);
+	if (likely(frame_fix)) {
+		if (unlikely((ep->frame_offset == 0) &&
+			((current_frame < ep->frame_interval) || (current_frame > (0x800 - ep->frame_interval))))) {
+			frame_fix = ep->frame_interval;
+		} else {
+			frame_fix = (ep->frame_offset + ep->frame_interval) & 0x7ff;
+			if (unlikely((frame_fix <= current_frame) &&
+				!((frame_fix == 0) && (current_frame > (0x800 - 2 * ep->frame_interval))))) {
+				frame_fix = (current_frame - current_frame % ep->frame_interval + ep->frame_interval) & 0x7ff;
+				printk(KERN_DEBUG "isoc is delayed: cur=0x%x, offset=0x%x\n", current_frame, ep->frame_offset);
+			}
+		}
+	} else {
+		frame_fix = (current_frame + ep->frame_interval) & 0x7ff;
+	}
+	ep->frame_offset = frame_fix;
 
 	/* according to USB2.0 spec, each microframe can send 3 packets at most */
+	data_desc = req->data_desc;
 	for (i = 0; i < req->active_desc_count; i += j) {
 		if ((req->active_desc_count - i) >= ISO_MAX_PACKET)
 			max_packet_num = ISO_MAX_PACKET;
@@ -786,12 +808,11 @@ static void ambarella_patch_iso_desc(struct ambarella_udc *udc,
 			max_packet_num = req->active_desc_count - i;
 
 		for (j = 0; j < max_packet_num; j++) {
-			data_desc->status |= ((frame_fix & 0x7ff) << 16);
+			data_desc->status |= (frame_fix << 16);
 			data_desc->status |= (max_packet_num << 14);
 			data_desc->status &= ~(0xf0000000);
 			data_desc->status |= USB_DMA_BUF_HOST_RDY | USB_DMA_LAST;
 			data_desc = data_desc->next_desc_virt;
-
 		}
 	}
 }
@@ -801,6 +822,17 @@ static void ambarella_set_tx_dma(struct ambarella_ep *ep,
 {
 	struct ambarella_udc *udc = ep->udc;
 	struct ambarella_ep_reg *ep_reg = &ep->ep_reg;
+
+	/* Sometimes, DMA completion and IN_PKT INT come at the same time.
+	   They both will trigger next TX DMA. If one has triggered, the other
+	   should skip doing so. Because it is not permitted to trigger DMA again
+	   when it is on-going, which might cause potential H/W issue.
+	   So we'll do nothing if DMA is already on-going;
+	*/
+	if (ep->dma_going) {
+		/* pr_debug("%s: tx dma is on-going, skip triggering again.\n", ep->ep.name); */
+		return;
+	}
 
 	if (IS_ISO_IN_EP(ep))
 		ambarella_patch_iso_desc(udc, req, ep, frame_fix);
@@ -1246,25 +1278,20 @@ static void udc_device_interrupt(struct ambarella_udc *udc, u32 int_value)
 static void udc_epin_interrupt(struct ambarella_udc *udc, u32 ep_id)
 {
 	u32 ep_status = 0;
+	u32 hd_status = USB_EP_TXFIFO_EMPTY | USB_EP_TRN_DMA_CMPL | USB_EP_IN_PKT;
 	struct ambarella_ep *ep = &udc->ep[ep_id];
 	struct ambarella_request *req;
 
 	ep_status = readl(udc->base_reg + ep->ep_reg.sts_reg);
-
-	/* TxFIFO is empty, but we've not used this bit, so just ignored simply. */
-	if (ep_status == USB_EP_TXFIFO_EMPTY) {
-		writel(ep_status, udc->base_reg + ep->ep_reg.sts_reg);
-		return;
-	}
-
 	dprintk(DEBUG_NORMAL, "%s: ep_status = 0x%08x\n", ep->ep.name, ep_status);
 
 	if (ambarella_handle_ep_stall(ep, ep_status))
 		return;
 
 	if (ambarella_check_bna_error(ep, ep_status)
-			|| ambarella_check_he_error(ep, ep_status)) {
+		|| ambarella_check_he_error(ep, ep_status)) {
 		struct ambarella_request	*req = NULL;
+
 		ep->dma_going = 0;
 		ep->cancel_transfer = 0;
 		ep->need_cnak = 0;
@@ -1276,60 +1303,53 @@ static void udc_epin_interrupt(struct ambarella_udc *udc, u32 ep_id)
 		return;
 	}
 
-	if (ep_status & USB_EP_TRN_DMA_CMPL) {
-		/* write dummy desc to try to avoid BNA error */
-		ep->dummy_desc->status =
-			USB_DMA_BUF_HOST_RDY | USB_DMA_LAST;
-		writel(ep->dummy_desc_addr | udc->dma_fix,
+	if (ep_status & hd_status) {
+		ep_status &= hd_status;
+		writel(ep_status, udc->base_reg + ep->ep_reg.sts_reg);
+
+		/* TxFIFO is empty, but we've not used this bit, so just ignored simply. */
+		//if (ep_status == USB_EP_TXFIFO_EMPTY) {
+		//}
+
+		if (ep_status & USB_EP_TRN_DMA_CMPL) {
+			/* write dummy desc to try to avoid BNA error */
+			ep->dummy_desc->status =
+				USB_DMA_BUF_HOST_RDY | USB_DMA_LAST;
+			writel(ep->dummy_desc_addr | udc->dma_fix,
 				udc->base_reg + ep->ep_reg.dat_desc_ptr_reg);
 
-		if(ep->halted || ep->dma_going == 0 || ep->cancel_transfer == 1
+			if (ep->halted || ep->dma_going == 0 || ep->cancel_transfer == 1
 				|| list_empty(&ep->queue)) {
-			ep_status &= (USB_EP_IN_PKT | USB_EP_TRN_DMA_CMPL);
-			writel(ep_status, udc->base_reg + ep->ep_reg.sts_reg);
-			ep->dma_going = 0;
+				ep->dma_going = 0;
+				ep->cancel_transfer = 0;
+			} else {
+				ep->dma_going = 0;
+				ep->cancel_transfer = 0;
+				ep->need_cnak = 0;
+
+				ep->last_data_desc = ambarella_get_last_desc(ep);
+				if (ep->last_data_desc == NULL) {
+					pr_err("%s: last_data_desc is NULL\n", ep->ep.name);
+					BUG();
+				} else {
+					ambarella_handle_data_in(&udc->ep[ep_id]);
+				}
+			}
+		}
+
+		if (ep_status & USB_EP_IN_PKT) {
+			if (!ep->halted && !ep->cancel_transfer && !list_empty(&ep->queue)) {
+				req = list_first_entry(&ep->queue,
+					struct ambarella_request, queue);
+				ambarella_set_tx_dma(ep, req, 0);
+			} else if (ep->dma_going == 0 || ep->halted || ep->cancel_transfer) {
+				ambarella_set_ep_nak(ep);
+			}
 			ep->cancel_transfer = 0;
-			return;
 		}
-
-		ep->dma_going = 0;
-		ep->cancel_transfer = 0;
-		ep->need_cnak = 0;
-
-		ep->last_data_desc = ambarella_get_last_desc(ep);
-		if(ep->last_data_desc == NULL){
-			printk(KERN_ERR "%s: last_data_desc is NULL\n", ep->ep.name);
-			BUG();
-			return;
-		}
-		ambarella_handle_data_in(&udc->ep[ep_id]);
-	} else if(ep_status & USB_EP_IN_PKT) {
-#if 0
-		if (IS_ISO_IN_EP(ep))
-			goto finish;
-#endif
-
-		if(!ep->halted && !ep->cancel_transfer && !list_empty(&ep->queue)){
-			req = list_first_entry(&ep->queue,
-				struct ambarella_request, queue);
-			ambarella_set_tx_dma(ep, req, 0);
-		} else if (ep->dma_going == 0 || ep->halted || ep->cancel_transfer) {
-			ambarella_set_ep_nak(ep);
-		}
-		ep->cancel_transfer = 0;
-	} else if (ep_status != 0){
-		pr_err("%s: %s, Unknown int source(0x%08x)\n", __func__,
+	} else if (ep_status) {
+		pr_debug("%s: %s, Unknown int source(0x%08x)\n", __func__,
 			ep->ep.name, ep_status);
-		writel(ep_status, udc->base_reg + ep->ep_reg.sts_reg);
-		return;
-	}
-
-#if 0
-finish:
-#endif
-	if (ep_status != 0) {
-		ep_status &= (USB_EP_IN_PKT | USB_EP_TRN_DMA_CMPL | USB_EP_TXFIFO_EMPTY);
-//		ep_status &= (USB_EP_IN_PKT | USB_EP_TRN_DMA_CMPL | USB_EP_RCV_CLR_STALL);
 		writel(ep_status, udc->base_reg + ep->ep_reg.sts_reg);
 	}
 }
@@ -1568,7 +1588,8 @@ static int ambarella_udc_ep_enable(struct usb_ep *_ep,
 	ep->ctrl_sts_phase = 0;
 	ep->dma_going = 0;
 	ep->cancel_transfer = 0;
-	ep->frame_offset =  (1 << (desc->bInterval - 1));
+	ep->frame_offset = 0;
+	ep->frame_interval = 1 << (desc->bInterval - 1);
 
 	if(ep->dir == USB_DIR_IN){
 		idx = ep->id;
@@ -1592,7 +1613,7 @@ static int ambarella_udc_ep_enable(struct usb_ep *_ep,
 
 	if(ep->dir == USB_DIR_IN) {
 		/* NOTE: total IN fifo size must be less than 528 * 4B */
-		tmp = max_packet / 4;
+		tmp = DIV_ROUND_UP(max_packet, 4);
 
 		/* Double up the FIFO if isochronous mode */
 		if (IS_ISO_IN_EP(ep))
@@ -1724,6 +1745,12 @@ static int ambarella_udc_queue(struct usb_ep *_ep, struct usb_request *_req,
 	ep = to_ambarella_ep(_ep);
 	udc = ep->udc;
 
+	/* check whether USB is suspended */
+	if((readl(udc->base_reg + USB_DEV_STS_REG) & USB_DEV_SUSP_STS) && udc->sys_suspended){
+		pr_err("%s: UDC is suspended!\n", __func__);
+		return -ESHUTDOWN;
+	}
+
 	for(i = 0; i < EP_NUM_MAX; i++) {
 		struct ambarella_ep *endp;
 		endp = &udc->ep[i];
@@ -1770,12 +1797,6 @@ static int ambarella_udc_queue(struct usb_ep *_ep, struct usb_request *_req,
 		req->req.actual = 0;
 		req->req.complete(&ep->ep, &req->req);
 		return 0;
-	}
-
-	/* check whether USB is suspended */
-	if(readl(udc->base_reg + USB_DEV_STS_REG) & USB_DEV_SUSP_STS){
-		pr_err("%s: UDC is suspended!\n", __func__);
-		return -ESHUTDOWN;
 	}
 
 	if (unlikely((unsigned long)req->req.buf & 0x7)) {
@@ -2308,7 +2329,8 @@ static int ambarella_udc_probe(struct platform_device *pdev)
 
 	udc->udc_is_enabled = 0;
 	udc->vbus_status = 0;
-	udc->tx_fifosize = 528;
+	/* "total tx_fifosize" - "ep0 tx_fifosize" */
+	udc->tx_fifosize = USB_TXFIFO_DEPTH - USB_TXFIFO_DEPTH_CTRLIN;
 
 	ambarella_init_gadget(udc, pdev);
 	ambarella_udc_reinit(udc);

@@ -127,7 +127,20 @@ struct amb_clk_pll {
 	u32 ctrl3_val;
 	u32 fix_divider;
 	unsigned long max_vco;
+	struct device_node *np;
 };
+
+#define PLL_DTS_TABLE_SIZE 16
+struct pll_from_dts {
+	u32 pll_freq;
+	u32 pre_scaler_val;
+	u32 ctrl_val;
+	u32 frac_val;
+	u32 ctrl2_val;
+	u32 ctrl3_val;
+	u32 post_scaler_val;
+};
+static struct pll_from_dts pll_from_dts_table[PLL_DTS_TABLE_SIZE];
 
 #define to_amb_clk_pll(_hw) container_of(_hw, struct amb_clk_pll, hw)
 #define rct_writel_en(v, p)		\
@@ -325,6 +338,115 @@ static long ambarella_pll_round_rate(struct clk_hw *hw, unsigned long rate,
 		return roundup(rate, half_refclk);
 }
 
+extern uint32_t amba_secure_clk_pll_set_rate(const char *name,
+			unsigned long rate, unsigned long parent_rate);
+
+static int ambarella_pll_find_pll_dts_table(struct device_node *np,
+			unsigned long rate, struct pll_from_dts *pll_dts)
+{
+	int i = 0;
+	int rval = -1;
+
+	for (i = 0; i < PLL_DTS_TABLE_SIZE; i++) {
+		if (pll_from_dts_table[i].pll_freq == (rate / 1000)){
+			rval = 0;
+			pll_dts->pre_scaler_val = pll_from_dts_table[i].pre_scaler_val;
+			pll_dts->post_scaler_val = pll_from_dts_table[i].post_scaler_val;
+			pll_dts->ctrl_val = pll_from_dts_table[i].ctrl_val;
+			pll_dts->ctrl2_val = pll_from_dts_table[i].ctrl2_val;
+			pll_dts->ctrl3_val = pll_from_dts_table[i].ctrl3_val;
+			pll_dts->frac_val = pll_from_dts_table[i].frac_val;
+		}
+	}
+
+	return rval;
+}
+
+static int ambarella_pll_set_from_dts(struct amb_clk_pll *clk_pll,
+			char *prop_name, unsigned long rate)
+{
+	int rval = -1, num = 0;
+	struct device_node *np = clk_pll->np;
+	struct regmap *map = clk_pll->pll_regmap;
+	struct pll_from_dts pll_dts;
+	u32 *reg = clk_pll->reg_offset;
+
+	if(of_find_property(np, prop_name, NULL)){
+		num = of_property_count_elems_of_size(np, prop_name, sizeof(struct pll_from_dts));
+		if (num) {
+				rval = of_property_read_u32_array(np, prop_name,
+					  (u32 *)pll_from_dts_table, num * sizeof(struct pll_from_dts) / sizeof(u32));
+				if (rval) {
+					pr_err("%s: failed to get pll dts table\n", np->name);
+					goto END;
+				} else {
+					rval = ambarella_pll_find_pll_dts_table(np, rate, &pll_dts);
+					if (rval)
+						goto END;
+
+					/* set pre_scaler */
+					if (clk_pll->pres_reg){
+						if (map) {
+							if (clk_pll->extra_pre_scaler == 1)
+								rct_regmap_en(map, reg[PRES_OFFSET], (pll_dts.pre_scaler_val - 1) << 4);
+							else
+								regmap_write(map, reg[PRES_OFFSET], pll_dts.pre_scaler_val);
+						} else {
+							if (clk_pll->extra_pre_scaler == 1)
+								rct_writel_en((pll_dts.pre_scaler_val - 1) << 4, clk_pll->pres_reg);
+							else
+								writel(pll_dts.pre_scaler_val, clk_pll->pres_reg);
+						}
+					}
+
+					/* set post_scaler */
+					if (clk_pll->post_reg){
+						if (map) {
+							if (clk_pll->extra_post_scaler)
+								rct_regmap_en(map, reg[POST_OFFSET], (pll_dts.post_scaler_val - 1) << 4);
+							else
+								regmap_write(map, reg[POST_OFFSET], pll_dts.post_scaler_val);
+						} else {
+							if (clk_pll->extra_post_scaler)
+								rct_writel_en((pll_dts.post_scaler_val - 1) << 4, clk_pll->post_reg);
+							else
+								writel(pll_dts.post_scaler_val, clk_pll->post_reg);
+						}
+					}
+
+					/* set ctrl reg */
+					if (map)
+						rct_regmap_en(map, reg[CTRL_OFFSET], pll_dts.ctrl_val);
+					else
+						rct_writel_en(pll_dts.ctrl_val, clk_pll->ctrl_reg);
+
+					/* set frac reg */
+					if (map)
+						regmap_write(map, reg[FRAC_OFFSET], pll_dts.frac_val);
+					else
+						writel(pll_dts.frac_val, clk_pll->frac_reg);
+
+					/* set ctrl2 reg */
+					if (map)
+						regmap_write(map, reg[CTRL2_OFFSET], pll_dts.ctrl2_val);
+					else
+						writel(pll_dts.ctrl2_val, clk_pll->ctrl2_reg);
+
+					/* set ctrl3 reg */
+					if (map)
+						regmap_write(map, reg[CTRL3_OFFSET], pll_dts.ctrl3_val);
+					else
+						writel(pll_dts.ctrl3_val, clk_pll->ctrl3_reg);
+
+					rval = 0;
+				}
+		}
+	}
+
+END:
+	return rval;
+}
+
 static int ambarella_pll_set_rate(struct clk_hw *hw, unsigned long rate,
 			unsigned long parent_rate)
 {
@@ -337,6 +459,9 @@ static int ambarella_pll_set_rate(struct clk_hw *hw, unsigned long rate,
 	u64 dividend, divider, diff;
 	union ctrl_reg_u ctrl_val;
 	union frac_reg_u frac_val;
+
+	if (amba_secure_clk_pll_set_rate(clk_hw_get_name(hw), rate, parent_rate))
+		return 0;
 
 	if (rate == 0) {
 		if (map) {
@@ -352,6 +477,9 @@ static int ambarella_pll_set_rate(struct clk_hw *hw, unsigned long rate,
 		}
 		return 0;
 	}
+
+	if (ambarella_pll_set_from_dts(clk_pll, "amb,set-from-dts", rate) == 0)
+		return 0;
 
 	rate *= clk_pll->fix_divider;
 
@@ -629,6 +757,8 @@ static void __init ambarella_pll_clocks_init(struct device_node *np)
 		clk_pll->max_vco = (unsigned long)max_vco * 1000000ULL;
 	else
 		clk_pll->max_vco = MAX_VCO_FREQ;
+
+	clk_pll->np = np;
 
 	init.name = name;
 	init.ops = &pll_ops;

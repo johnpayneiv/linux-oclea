@@ -42,6 +42,93 @@ static const char *gclk_names[] = {
 	"gclk_pwm", "gclk_stereo", "gclk_vision", "gclk_fex", "pll_out_slvsec",
 };
 
+/* simple guard to check clk freq */
+struct safefreq_limitor {
+	const char *name;
+	unsigned long max; /* Hz */
+	unsigned long min;
+};
+
+static struct safefreq_limitor gclk_safefreq_limitor[] = {
+	[0] = {
+		.name = "gclk_cortex",
+		.max = 0,
+		.min = 0,
+	},
+
+	[1] = {
+		.name = "gclk_core",
+		.max = 0,
+		.min = 0,
+	},
+};
+
+static void cortex_core_clk_limitor_init(void)
+{
+	struct device_node *np;
+	struct property *prop;
+	const __be32 *reg;
+	u32 value, i = 0;
+
+	np = of_find_compatible_node(NULL, NULL, "ambarella,cpufreq");
+	if (!np)
+		return;
+
+	of_property_for_each_u32(np, "clocks-frequency-cortex-core",
+			prop, reg, value) {
+		if (gclk_safefreq_limitor[i % 2].min) {
+			if (gclk_safefreq_limitor[i % 2].min > value)
+				gclk_safefreq_limitor[i % 2].min = value;
+			if (gclk_safefreq_limitor[i % 2].max < value)
+				gclk_safefreq_limitor[i % 2].max = value;
+		} else {
+			gclk_safefreq_limitor[i % 2].min = value;
+			gclk_safefreq_limitor[i % 2].max = value;
+		}
+
+		i++;
+	}
+
+	gclk_safefreq_limitor[0].min *= 1000;
+	gclk_safefreq_limitor[0].max *= 1000;
+	gclk_safefreq_limitor[1].min *= 1000;
+	gclk_safefreq_limitor[1].max *= 1000;
+}
+
+static unsigned long ambarella_safefreq_check(const char *name, unsigned long freq)
+{
+	int i ,limit, match = 0;
+
+	limit = sizeof(gclk_safefreq_limitor)/sizeof(gclk_safefreq_limitor[0]);
+
+	for (i = 0; i < limit; i++) {
+		if (!gclk_safefreq_limitor[i].name)
+			continue;
+
+		if (strcmp(name, gclk_safefreq_limitor[i].name))
+			continue;
+
+		match = 1;
+		break;
+	}
+
+	if (!match) /* doesn't care */
+		return freq;
+
+	if (!gclk_safefreq_limitor[i].min || !gclk_safefreq_limitor[i].max)
+		return freq; /* no rule to check */
+
+	if ((freq >= gclk_safefreq_limitor[i].min) && (freq <= gclk_safefreq_limitor[i].max))
+		return freq; /* pass */
+	else
+		return 0; /* freq = 0, invalid */
+}
+
+static void ambarella_safefreq_limitor_init(void)
+{
+	cortex_core_clk_limitor_init();
+}
+
 static int ambarella_clock_proc_show(struct seq_file *m, void *v)
 {
 	struct clk *gclk;
@@ -82,6 +169,11 @@ static ssize_t ambarella_clock_proc_write(struct file *file,
 	}
 
 	sscanf(buf, "%s %ld", clk_name, &freq);
+	if (!freq)
+		goto exit;
+
+	if (!strcmp(clk_name, "gclk_ddr"))
+		goto exit;
 
 	gclk = clk_get_sys(NULL, clk_name);
 	if (IS_ERR(gclk)) {
@@ -90,7 +182,10 @@ static ssize_t ambarella_clock_proc_write(struct file *file,
 		goto exit;
 	}
 
-	clk_set_rate(gclk, freq);
+	freq = ambarella_safefreq_check(clk_name, freq);
+	if (freq)
+		clk_set_rate(gclk, freq);
+
 	clk_put(gclk);
 exit:
 	kfree(buf);
@@ -115,6 +210,8 @@ static int __init ambarella_init_clk(void)
 {
 	proc_create_data("clock", S_IRUGO, get_ambarella_proc_dir(),
 		&proc_clock_fops, NULL);
+
+	ambarella_safefreq_limitor_init();
 
 	return 0;
 }

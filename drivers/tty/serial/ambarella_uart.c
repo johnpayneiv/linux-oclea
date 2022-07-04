@@ -417,6 +417,11 @@ static void serial_ambarella_dma_rx_irq(struct ambarella_uart_port *amb_port)
 	struct tty_port *port = &amb_port->port.state->port;
 	struct dma_tx_state state;
 	size_t pending;
+	u32 value;
+
+	dmaengine_pause(amb_port->rx_dma_chan);
+	value = readl_relaxed(amb_port->port.membase + UART_DMAE_OFFSET);
+	writel_relaxed(value & ~0x1, amb_port->port.membase + UART_DMAE_OFFSET);
 
 	dmaengine_tx_status(amb_port->rx_dma_chan, amb_port->rx_cookie, &state);
 	dmaengine_terminate_async(amb_port->rx_dma_chan);
@@ -428,6 +433,9 @@ static void serial_ambarella_dma_rx_irq(struct ambarella_uart_port *amb_port)
 	serial_ambarella_handle_rx_pio(amb_port, port);
 
 	tty_flip_buffer_push(port);
+
+	writel_relaxed(value, amb_port->port.membase + UART_DMAE_OFFSET);
+	dmaengine_resume(amb_port->rx_dma_chan);
 
 	serial_ambarella_start_rx_dma(amb_port);
 }
