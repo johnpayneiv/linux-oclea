@@ -333,9 +333,6 @@ static int ambarella_can_err(struct net_device *ndev, u32 isr)
 	rxerr = (err >> CAN_ERR_REC_SHIFT) & CAN_ECR_TEC_MASK;
 	txerr = err & CAN_ECR_TEC_MASK;
 
-	cf->data[6] = txerr;
-	cf->data[7] = rxerr;
-
 	/* Handle the err interrupt */
 	/* Check for bus-off */
 	if (isr & CAN_INT_ENTER_BUS_OFF) {
@@ -346,6 +343,9 @@ static int ambarella_can_err(struct net_device *ndev, u32 isr)
 		can_bus_off(ndev);
 		cf->can_id |= CAN_ERR_BUSOFF;
 		writel_relaxed(0, priv->reg_base + CAN_WAKEUP_OFFSET);
+	} else {
+		cf->data[6] = txerr;
+		cf->data[7] = rxerr;
 	}
 
 	if (isr & CAN_INT_ENTER_ERR_PSV) {

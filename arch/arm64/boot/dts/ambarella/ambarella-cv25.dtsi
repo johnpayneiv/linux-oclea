@@ -876,6 +876,12 @@
 				reg = <1>;
 				amb,pinmux-ids = <0x205B 0x205C>;
 			};
+
+			hdmi_hpd_pins: hdmi_hpd@0 {
+				reg = <0>;
+				amb,pinmux-ids = <0x1052>;
+				amb,pinconf-ids = <0x000052>;
+			};
 		};
 	};
 
@@ -926,7 +932,7 @@
 			amb,rct-regmap = <&rct_syscon 0x4c0 0x4c4 0x664 0x4f0 0>;
 			amb,tuning-tx-clk = <0>;
 			amb,latctrl = <0x2>;
-			max-frequency = <120000000>;
+			max-frequency = <96000000>;
 			bus-width = <8>;
 			cap-sdio-irq;
 			cap-sd-highspeed;
@@ -946,7 +952,7 @@
 			amb,rct-regmap = <&rct_syscon 0x4c8 0x4cc 0x668 0x4f0 16>;
 			amb,tuning-tx-clk = <0>;
 			amb,latctrl = <0x2>;
-			max-frequency = <120000000>;
+			max-frequency = <96000000>;
 			bus-width = <4>;
 			cap-sdio-irq;
 			cap-sd-highspeed;
@@ -963,7 +969,7 @@
 			pinctrl-0 = <&sdmmc2_pins_4bit &sdmmc2_cd_pin &sdmmc2_wp_pin>;
 			clocks = <&gclk_sdio>;
 			amb,latctrl = <0x2>;
-			max-frequency = <96000000>;
+			max-frequency = <48000000>;
 			bus-width = <4>;
 			cap-sdio-irq;
 			cap-sd-highspeed;
@@ -1203,6 +1209,8 @@
 			reg = <0xe000b000 0x1000>;
 			interrupts = <0 85 0x4>;
 			interrupt-names = "hdmi";
+			pinctrl-names = "default";
+			pinctrl-0 = <&hdmi_hpd_pins>;
 			amb,hdmi-version = <20>;
 			amb,phy-regmap = <&rct_syscon 0x10>;
 			/* phy val : <pib pibib tap0_cur tap1_cur tap2_cur temination> */
@@ -1595,32 +1603,44 @@
 
 		gclk_sd: gclk-sd {
 			#clock-cells = <0>;
-			compatible = "ambarella,div-clock";
-			reg = <0xed08000c 4>;
-			clocks = <&pll_out_sd>;
+			compatible = "ambarella,composite-clock";
+			reg = <0xed08000c 4>, <0xed0804d0 4>;
+			clocks = <&pll_out_sd>, <&gclk_core>;
 			clock-output-names = "gclk_sd";
+			assigned-clocks = <&gclk_sd>;
+			assigned-clock-parents = <&pll_out_sd>;
 			amb,div-width = <16>;
 			amb,div-shift = <0>;
+			amb,mux-mask = <1>;
+			amb,mux-shift = <0>;
 		};
 
 		gclk_sdio: gclk-sdio {
 			#clock-cells = <0>;
-			compatible = "ambarella,div-clock";
-			reg = <0xed080434 4>;
-			clocks = <&pll_out_sd>;
+			compatible = "ambarella,composite-clock";
+			reg = <0xed080434 4>, <0xed0804d0 4>;
+			clocks = <&pll_out_sd>, <&gclk_core>;
 			clock-output-names = "gclk_sdio";
+			assigned-clocks = <&gclk_sdio>;
+			assigned-clock-parents = <&pll_out_sd>;
 			amb,div-width = <16>;
 			amb,div-shift = <0>;
+			amb,mux-mask = <1>;
+			amb,mux-shift = <3>;
 		};
 
 		gclk_sdxc: gclk-sdxc {
 			#clock-cells = <0>;
-			compatible = "ambarella,div-clock";
-			reg = <0xed080430 4>;
-			clocks = <&pll_out_sd>;
+			compatible = "ambarella,composite-clock";
+			reg = <0xed080430 4>, <0xed0804d0 4>;
+			clocks = <&pll_out_sd>, <&gclk_core>;
 			clock-output-names = "gclk_sdxc";
+			assigned-clocks = <&gclk_sdxc>;
+			assigned-clock-parents = <&pll_out_sd>;
 			amb,div-width = <16>;
 			amb,div-shift = <0>;
+			amb,mux-mask = <1>;
+			amb,mux-shift = <2>;
 		};
 
 		gclk_nand: gclk-nand {

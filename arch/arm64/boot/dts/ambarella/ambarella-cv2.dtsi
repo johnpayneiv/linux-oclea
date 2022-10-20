@@ -776,6 +776,11 @@
 						   0xba0089 0xba008a 0xba008b 0xba008c>;
 			};
 
+			hdmi_hpd_pins: hdmi_hpd@0 {
+				reg = <0>;
+				amb,pinmux-ids = <0x106F>;
+				amb,pinconf-ids = <0x00006F>;
+			};
 		};
 	};
 
@@ -825,11 +830,12 @@
 			clocks = <&gclk_sd>;
 			amb,rct-regmap = <&rct_syscon 0x4c0 0x4c4 0x664 0x4f0 0>;
 			amb,tuning-tx-clk = <0>;
-			max-frequency = <120000000>;
+			max-frequency = <96000000>;
 			bus-width = <8>;
 			cap-sdio-irq;
 			cap-sd-highspeed;
 			cap-mmc-highspeed;
+			mmc-hs200-1_8v;
 		};
 
 		sdmmc1: sdmmc1@e0005000 { /* SDXC rather than SDIO */
@@ -843,7 +849,7 @@
 			clocks = <&gclk_sdxc>;
 			amb,rct-regmap = <&rct_syscon 0x4c8 0x4cc 0x668 0x4f0 16>;
 			amb,tuning-tx-clk = <0>;
-			max-frequency = <120000000>;
+			max-frequency = <96000000>;
 			bus-width = <8>;
 			cap-sdio-irq;
 			cap-sd-highspeed;
@@ -1124,6 +1130,8 @@
 			reg = <0xe8007000 0x1000>;
 			interrupts = <0 85 0x4>;
 			interrupt-names = "hdmi";
+			pinctrl-names = "default";
+			pinctrl-0 = <&hdmi_hpd_pins>;
 			amb,hdmi-version = <20>;
 			amb,phy-regmap = <&rct_syscon 0x10>;
 			/* phy val : <pib pibib tap0_cur tap1_cur tap2_cur temination> */
@@ -1538,22 +1546,30 @@
 
 		gclk_sd: gclk-sd {
 			#clock-cells = <0>;
-			compatible = "ambarella,div-clock";
-			reg = <0xed08000c 4>;
-			clocks = <&pll_out_sd>;
+			compatible = "ambarella,composite-clock";
+			reg = <0xed08000c 4>, <0xed0804d0 4>;
+			clocks = <&pll_out_sd>, <&gclk_core>;
 			clock-output-names = "gclk_sd";
+			assigned-clocks = <&gclk_sd>;
+			assigned-clock-parents = <&pll_out_sd>;
 			amb,div-width = <16>;
 			amb,div-shift = <0>;
+			amb,mux-mask = <1>;
+			amb,mux-shift = <0>;
 		};
 
 		gclk_sdxc: gclk-sdxc {
 			#clock-cells = <0>;
-			compatible = "ambarella,div-clock";
-			reg = <0xed080434 4>;
-			clocks = <&pll_out_sd>;
+			compatible = "ambarella,composite-clock";
+			reg = <0xed080434 4>, <0xed0804d0 4>;
+			clocks = <&pll_out_sd>, <&gclk_core>;
 			clock-output-names = "gclk_sdxc";
+			assigned-clocks = <&gclk_sdxc>;
+			assigned-clock-parents = <&pll_out_sd>;
 			amb,div-width = <16>;
 			amb,div-shift = <0>;
+			amb,mux-mask = <1>;
+			amb,mux-shift = <2>;
 		};
 
 		gclk_nand: gclk-nand {

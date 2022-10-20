@@ -353,7 +353,7 @@ static irqreturn_t ambdma_dma_irq_handler(int irq, void *dev_data)
 {
 	struct ambdma_device *amb_dma = dev_data;
 	struct ambdma_chan *amb_chan;
-	u32 i, int_src;
+	u32 i, int_src, status;
 	irqreturn_t ret = IRQ_NONE;
 
 	int_src = readl(amb_dma->regbase + DMA_INT_OFFSET);
@@ -364,9 +364,12 @@ static irqreturn_t ambdma_dma_irq_handler(int irq, void *dev_data)
 		amb_chan = &amb_dma->amb_chan[i];
 		spin_lock(&amb_chan->lock);
 		if (int_src & (1 << i)) {
-			writel(0, dma_chan_sta_reg(amb_chan));
-			tasklet_schedule(&amb_chan->tasklet);
-			ret = IRQ_HANDLED;
+			status = readl(dma_chan_sta_reg(amb_chan));
+			if (status & ~AMBARELLA_DMA_MAX_LENGTH) {
+				writel(0, dma_chan_sta_reg(amb_chan));
+				tasklet_schedule(&amb_chan->tasklet);
+				ret = IRQ_HANDLED;
+			}
 		}
 		spin_unlock(&amb_chan->lock);
 	}
@@ -598,6 +601,38 @@ static void ambdma_free_chan_resources(struct dma_chan *chan)
 		ambdma_free_desc(chan, amb_desc);
 }
 
+static int ambdma_check_count_status(struct ambdma_chan *amb_chan, struct ambdma_desc *first)
+{
+	u32 mask, status_old, status, count;
+	ktime_t timeout;
+
+	mask = DMA_CHANX_STA_OD | DMA_CHANX_STA_ME | DMA_CHANX_STA_BE | DMA_CHANX_STA_RWE | DMA_CHANX_STA_AE;
+
+	status_old = status = readl(dma_chan_sta_reg(amb_chan));
+	count = status & AMBARELLA_DMA_MAX_LENGTH;
+
+	if ((status & mask) || (count > first->lli->xfr_count)) {
+		timeout = ktime_add_ms(ktime_get(), 10);
+
+		while (1) {
+			status = readl(dma_chan_sta_reg(amb_chan));
+			count = status & AMBARELLA_DMA_MAX_LENGTH;
+
+			if (((status & mask) == (status_old & DMA_CHANX_STA_OD)) && (count < first->lli->xfr_count))
+				break;
+
+			if (ktime_after(ktime_get(), timeout)) {
+				WARN_ONCE(ktime_after(ktime_get(), timeout),
+					"status: 0x%x -> 0x%x\n", status_old, status);
+				break;
+			}
+		}
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 /*
  * If this function is called when the dma channel is transferring data,
  * you may get inaccuracy result.
@@ -654,6 +689,14 @@ again:
 
 			rmb(); /* ensure Descriptor Address is read before Status */
 			count = readl(dma_chan_sta_reg(amb_chan));
+			/*
+			 * There is such chance that current descriptor is completed
+			 * just when we poll the status registers.
+			 */
+			if (first->is_cyclic && ambdma_check_count_status(amb_chan, first) < 0) {
+				writel(count & ~DMA_CHANX_STA_OD, dma_chan_sta_reg(amb_chan));
+				continue;
+			}
 			count &= AMBARELLA_DMA_MAX_LENGTH;
 			rmb(); /* ensure Descriptor Address is read after Status */
 
@@ -661,14 +704,14 @@ again:
 				break;
 		}
 
-               if(first->lli->attr & DMA_DESC_EOC) {
-                       if(count > first->lli->xfr_count) {
-                               if(ktime_after(ktime_get(), timeout))
-                                       WARN_ON(ktime_after(ktime_get(), timeout));
-                               else
-                                       goto again;
-                       }
-               }
+		if (first->lli->attr & DMA_DESC_EOC) {
+			if(count > first->lli->xfr_count) {
+				if(ktime_after(ktime_get(), timeout))
+					WARN_ON(ktime_after(ktime_get(), timeout));
+				else
+					goto again;
+			}
+		}
 
 		if (unlikely(trials >= AMBARELLA_MAX_DESC_TRIALS)) {
 			spin_unlock_irqrestore(&amb_chan->lock, flags);
@@ -687,6 +730,8 @@ again:
 				}
 
 			}
+		} else {
+			count += first->total_len;
 		}
 
 		/*
@@ -702,6 +747,8 @@ again:
 		 */
 		if (desc_phys == amb_desc->txd.phys)
 			count -= amb_desc->lli->xfr_count;
+		else
+			count -= first->lli->xfr_count;
 
 		count += first->total_len;
 		count %= first->total_len;
