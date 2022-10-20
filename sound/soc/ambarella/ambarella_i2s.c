@@ -266,6 +266,11 @@ static int ambarella_i2s_hw_params(struct snd_pcm_substream *substream,
 		if (i2s_intf->mode == I2S_DSP_MODE) {
 			i2s_intf->slots = i2s_intf->channels - 1;
 			i2s_intf->word_pos = 15;
+		} else if (i2s_intf->mode == I2S_LEFT_JUSTIFIED_MODE) {
+			i2s_intf->slots = 0;
+			i2s_intf->word_pos = 0;
+			i2s_intf->tx_ctrl |= I2S_TX_WS_INV_BIT;
+			i2s_intf->rx_ctrl |= I2S_RX_WS_INV_BIT;
 		} else {
 			i2s_intf->slots = 0;
 			i2s_intf->word_pos = 0;
@@ -364,7 +369,7 @@ static int ambarella_i2s_hw_params(struct snd_pcm_substream *substream,
 
 	msleep(1);
 
-	if ((i2s_intf->mode == I2S_I2S_MODE) && priv_data->ws_set_support)
+	if ((priv_data->dai_master == true) && priv_data->ws_set_support)
 		writel_relaxed(I2S_WS_EN, priv_data->regbase + I2S_WS_OFFSET);
 
 	/* Notify HDMI that the audio interface is changed */

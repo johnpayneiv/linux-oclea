@@ -43,6 +43,7 @@
 #include <linux/mii.h>
 #include <linux/phy.h>
 #include <linux/ethtool.h>
+#include <linux/phylink.h>
 #include <linux/iopoll.h>
 #include <asm/dma.h>
 #include <plat/eth.h>
@@ -912,8 +913,7 @@ static int ambeth_phy_start(struct ambeth_info *lp)
 	}
 
 	ethtool_convert_legacy_u32_to_link_mode(mask, lp->phy_supported);
-
-	linkmode_and(phydev->supported, phydev->supported, mask);
+	bitmap_and(phydev->supported, phydev->supported, mask, 32);
 	bitmap_copy(phydev->advertising, phydev->supported, __ETHTOOL_LINK_MODE_MASK_NBITS);
 
 	spin_lock_irqsave(&lp->lock, flags);
@@ -1651,6 +1651,7 @@ static int ambeth_hard_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 		return ret_val;
 	}
 
+	skb_tx_timestamp(skb);
 	lp->tx.rng_tx[entry].skb = skb;
 	lp->tx.rng_tx[entry].mapping = mapping;
 	lp->tx.desc_tx[entry].buffer1 = mapping;
@@ -2411,6 +2412,7 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 	struct device_node *phy_np;
 	enum of_gpio_flags flags;
 	int ret_val, hw_intf, mask, val = 0;
+	__ETHTOOL_DECLARE_LINK_MODE_MASK(phy_supported) = { 0, };
 
 	lp->instance = of_alias_get_id(np, "ethernet");
 	if (lp->instance >= ETH_INSTANCES) {
@@ -2544,15 +2546,24 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 
 		}
 	}
+	phylink_set(phy_supported, 10baseT_Half);
+	phylink_set(phy_supported, 10baseT_Full);
+	phylink_set(phy_supported, 100baseT_Half);
+	phylink_set(phy_supported, 100baseT_Full);
+	phylink_set(phy_supported, Autoneg);
+	phylink_set(phy_supported, Pause);
+	phylink_set(phy_supported, Asym_Pause);
 
 	if (lp->intf_type >= PHY_INTERFACE_MODE_RGMII &&
-		lp->intf_type <= PHY_INTERFACE_MODE_RGMII_TXID)
-		ethtool_convert_link_mode_to_legacy_u32(&lp->phy_supported, PHY_GBIT_FEATURES);
-	else
-		ethtool_convert_link_mode_to_legacy_u32(&lp->phy_supported, PHY_BASIC_FEATURES);
+		lp->intf_type <= PHY_INTERFACE_MODE_RGMII_TXID) {
+		phylink_set(phy_supported, 1000baseT_Half);
+		phylink_set(phy_supported, 1000baseT_Full);
+	}
 
-	/*enable flow control*/
-	lp->phy_supported |= SUPPORTED_Pause | SUPPORTED_Asym_Pause;
+	phylink_set(phy_supported, TP);
+	phylink_set(phy_supported, MII);
+
+	ethtool_convert_link_mode_to_legacy_u32(&lp->phy_supported, phy_supported);
 
 	ret_val = of_property_read_u32(np, "amb,tx-ring-size", &lp->tx_count);
 	if (ret_val < 0 || lp->tx_count < AMBETH_TX_RNG_MIN)

@@ -1589,7 +1589,7 @@ static int ambarella_udc_ep_enable(struct usb_ep *_ep,
 	ep->dma_going = 0;
 	ep->cancel_transfer = 0;
 	ep->frame_offset = 0;
-	ep->frame_interval = 1 << (desc->bInterval - 1);
+	ep->frame_interval = desc->bInterval ? (1 << (desc->bInterval - 1)) : 0;
 
 	if(ep->dir == USB_DIR_IN){
 		idx = ep->id;

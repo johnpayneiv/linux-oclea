@@ -589,9 +589,9 @@ static void ambarella_phy_shutdown(struct platform_device *pdev)
 }
 
 #ifdef CONFIG_PM
-static int ambarella_phy_suspend(struct platform_device *pdev,
-	pm_message_t state)
+static int ambarella_phy_suspend(struct device *dev)
 {
+	struct platform_device	*pdev = to_platform_device(dev);
 	struct ambarella_phy *amb_phy = platform_get_drvdata(pdev);
 
 	if (amb_phy->pol_regmap) {
@@ -605,8 +605,9 @@ static int ambarella_phy_suspend(struct platform_device *pdev,
 	return 0;
 }
 
-static int ambarella_phy_resume(struct platform_device *pdev)
+static int ambarella_phy_resume(struct device *dev)
 {
+	struct platform_device	*pdev = to_platform_device(dev);
 	struct ambarella_phy *amb_phy = platform_get_drvdata(pdev);
 
 	if (amb_phy->pol_regmap) {
@@ -619,6 +620,20 @@ static int ambarella_phy_resume(struct platform_device *pdev)
 
 	return 0;
 }
+
+static const struct dev_pm_ops ambarella_usbphy_dev_pm_ops = {
+
+	/* suspend to mem */
+	.suspend_late = ambarella_phy_suspend,
+	.resume_early = ambarella_phy_resume,
+
+	/* suspend to disk */
+	.freeze = ambarella_phy_suspend,
+	.thaw = ambarella_phy_resume,
+
+	/* restore from suspend to disk */
+	.restore = ambarella_phy_resume,
+};
 #endif
 
 static const struct of_device_id ambarella_phy_dt_ids[] = {
@@ -631,14 +646,13 @@ static struct platform_driver ambarella_phy_driver = {
 	.probe = ambarella_phy_probe,
 	.remove = ambarella_phy_remove,
 	.shutdown = ambarella_phy_shutdown,
-#ifdef CONFIG_PM
-	.suspend = ambarella_phy_suspend,
-	.resume	 = ambarella_phy_resume,
-#endif
 	.driver = {
 		.name = DRIVER_NAME,
 		.owner	= THIS_MODULE,
 		.of_match_table = ambarella_phy_dt_ids,
+#ifdef CONFIG_PM
+		.pm = &ambarella_usbphy_dev_pm_ops,
+#endif
 	 },
 };
 

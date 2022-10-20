@@ -668,6 +668,10 @@ Optional properties:
   is no gpio control led to indicate status, please donot specify this property.
 - amb,latctrl: if this property is set, read latency control register will be set to this
   value except hs200 mode.
+- amb,sd-hs-bit: if this property is set, rigister 0x28 bit 2 high speed enable will be set.
+- amb,sd-delay-mux: the first element is set register 0xd8 and the second element is set
+  register 0xdc. Usually for the second element, bit25-26 is clk output mode and bit22-24 is
+  clk output delay control, don't set it if you are clear what you are doing.
 
 iii) Example
 -----------
@@ -724,6 +728,9 @@ Optional properties:
   by default it's 25MHz.
 - amb,enhance: specifies to use the enhance ethernet iff the chip supports.
 - amb,mdio-gpio: specifies to use GPIO to emulating MDIO bus.
+- amb,ahb-12mhz-div: specifies the divider value of mdio clock in AHB bus.
+  If this property is set, mdio in AHB bus will be enabled. This is a
+  recommended option.
 
 ii) Example
 -----------
@@ -1206,10 +1213,25 @@ iv) PWM user nodes example
   DESCRIPTION:
     pwms = PWM properties name;
     &pwm = phandle to the PWM controller node;
-    2    = the PWM number or channel;
+    2    = the PWM number or channel of the PWM controller,
+			Valid range: 0-3;
     4000 = the PWM period in nanoseconds.
     0    = normal polarity
   Please see Reference for detailed.
+
+  NOTE:
+  Usually, there are multi-group PWM controllers on each platform.
+  And each PWM controller has 4 channels.
+  PWM Channel Number like this:
+  ###PWM controller### : ###PWM channels###
+  PWM0 : PWM0:3
+  PWM1 : PWM4:7
+  PWM2 : PWM8:11
+
+  example:
+  If using PWM10 pin setting for pwm usage, it means channel 2 of PWM2 controller.
+  and the dts setting should be:
+  pwms = <&pwm2 2 40000 0>;
 
 
 26) - ADC node

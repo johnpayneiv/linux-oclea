@@ -36,7 +36,7 @@ EXPORT_SYMBOL(ambcache_clean_range);
 void ambcache_inv_range(void *addr, unsigned int size)
 {
 #if defined(__aarch64__)
-	__dma_map_area(addr, size, DMA_FROM_DEVICE);
+	__dma_unmap_area(addr, size, DMA_FROM_DEVICE);
 #else
 	__sync_cache_range_r(addr, size);
 #endif

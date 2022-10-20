@@ -721,7 +721,7 @@
 			clocks = <&gclk_sd>;
 			amb,rct-regmap = <&rct_syscon 0x4c0 0x4c4 0x664 0x4f0 0>;
 			amb,tuning-tx-clk = <0>;
-			max-frequency = <120000000>;
+			max-frequency = <96000000>;
 			bus-width = <8>;
 			cap-sdio-irq;
 			cap-sd-highspeed;
@@ -758,7 +758,7 @@
 			clocks = <&gclk_sdxc>;
 			amb,rct-regmap = <&rct_syscon 0x4c8 0x4cc 0x668 0x4f0 16>;
 			amb,tuning-tx-clk = <0>;
-			max-frequency = <120000000>;
+			max-frequency = <96000000>;
 			bus-width = <8>;
 			cap-sdio-irq;
 			cap-sd-highspeed;
@@ -1236,32 +1236,44 @@
 
 		gclk_sd: gclk-sd {
 			#clock-cells = <0>;
-			compatible = "ambarella,div-clock";
-			reg = <0xec17000c 4>;
-			clocks = <&pll_out_sd>;
+			compatible = "ambarella,composite-clock";
+			reg = <0xec17000c 4>, <0xec1704d0 4>;
+			clocks = <&pll_out_sd>, <&gclk_core>;
 			clock-output-names = "gclk_sd";
+			assigned-clocks = <&gclk_sd>;
+			assigned-clock-parents = <&pll_out_sd>;
 			amb,div-width = <16>;
 			amb,div-shift = <0>;
+			amb,mux-mask = <1>;
+			amb,mux-shift = <0>;
 		};
 
 		gclk_sdio: gclk-sdio {
 			#clock-cells = <0>;
-			compatible = "ambarella,div-clock";
-			reg = <0xec170430 4>;
-			clocks = <&pll_out_sd>;
+			compatible = "ambarella,composite-clock";
+			reg = <0xec170430 4>, <0xec1704d0 4>;
+			clocks = <&pll_out_sd>, <&gclk_core>;
 			clock-output-names = "gclk_sdio";
+			assigned-clocks = <&gclk_sdio>;
+			assigned-clock-parents = <&pll_out_sd>;
 			amb,div-width = <16>;
 			amb,div-shift = <0>;
+			amb,mux-mask = <1>;
+			amb,mux-shift = <1>;
 		};
 
 		gclk_sdxc: gclk-sdxc {
 			#clock-cells = <0>;
-			compatible = "ambarella,div-clock";
-			reg = <0xec170434 4>;
-			clocks = <&pll_out_sd>;
+			compatible = "ambarella,composite-clock";
+			reg = <0xec170434 4>, <0xec1704d0 4>;
+			clocks = <&pll_out_sd>, <&gclk_core>;
 			clock-output-names = "gclk_sdxc";
+			assigned-clocks = <&gclk_sdxc>;
+			assigned-clock-parents = <&pll_out_sd>;
 			amb,div-width = <16>;
 			amb,div-shift = <0>;
+			amb,mux-mask = <1>;
+			amb,mux-shift = <2>;
 		};
 
 		gclk_uart: gclk-uart {

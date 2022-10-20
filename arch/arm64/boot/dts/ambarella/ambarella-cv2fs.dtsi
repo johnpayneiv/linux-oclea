@@ -900,7 +900,7 @@
 			clocks = <&gclk_sd0>;
 			amb,rct-regmap = <&rct_syscon 0x4c0 0x4c4 0x664 0x4f0 0>;
 			amb,tuning-tx-clk = <0>;
-			max-frequency = <120000000>;
+			max-frequency = <96000000>;
 			bus-width = <8>;
 			cap-sdio-irq;
 			cap-sd-highspeed;
@@ -919,7 +919,7 @@
 			clocks = <&gclk_sd1>;
 			amb,rct-regmap = <&rct_syscon 0x4c8 0x4cc 0x668 0x4f0 16>;
 			amb,tuning-tx-clk = <0>;
-			max-frequency = <120000000>;
+			max-frequency = <96000000>;
 			bus-width = <4>;
 			cap-sdio-irq;
 			cap-sd-highspeed;
