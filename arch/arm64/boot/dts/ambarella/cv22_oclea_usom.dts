@@ -1,0 +1,234 @@
+/dts-v1/;
+/include/ "ambarella-cv22.dtsi"
+/include/ "cv22_oclea_cma_low.dtsi"
+/ {
+ som_type = "Oclea CV22 uSoM";
+ model = "Oclea CV22 uSOM Only";
+ compatible = "ambarella,cv22bub", "ambarella,cv22";
+ oclea-vin-version = <1>;
+ chosen {
+  bootargs = "console=ttyS0 ubi.mtd=##ROOT_DEVICE## root=ubi0:rootfs rw rootfstype=ubifs init=/sbin/init";
+ };
+ n_apb@e4000000 {
+  ntc0: ntc0 {
+   compatible = "joinset,ecth100505103f3435f";
+   pullup-uv = <1800000>;
+   pullup-ohm = <10000>;
+   pulldown-ohm = <0>;
+   io-channels = <&adc0 0>;
+   alias-name = "main-ntc";
+   #thermal-sensor-cells = <0>;
+  };
+  hwid {
+   compatible = "oclea,cv22_uSOM";
+   pullup-mv = <3300>;
+   io-channels = <&adc0 1>;
+   alias-name = "hwid";
+  };
+  adc0: adc@e4003000 {
+   status = "ok";
+   amb,channels-used = <0x03>;
+   #io-channel-cells = <1>;
+  };
+  i2c0: i2c@e4008000 {
+   status = "ok";
+   ambvin0@01 {
+    compatible = "ambarella,ambvin";
+    reg = <0x01>;
+   };
+   temp_sensor_vin0: temp_sensor_vin0@48 {
+    compatible = "ti,lm75a";
+    reg = <0x48>;
+    dev-name = "iio:temp_sensor_vin0";
+   };
+   vin0_eeprom: eeprom@50 {
+    compatible = "24c128";
+    reg = <0x50>;
+    pagesize = <64>;
+   };
+   pmic_mp5424: pmic_mp5424@69 {
+    compatible = "pmic_mp5424";
+    reg = <0x69>;
+   };
+  };
+  i2c1: i2c@e4009000 {
+                        status = "ok";
+                };
+  i2c2: i2c@e400a000 {
+   status = "disabled";
+  };
+  i2c3: i2c@e400b000 {
+   status = "ok";
+   ambvin1@01 {
+    compatible = "ambarella,ambvin";
+    reg = <0x01>;
+   };
+   temp_sensor_vin1: temp_sensor_vin1@48 {
+    compatible = "ti,lm75a";
+    reg = <0x48>;
+    dev-name = "iio:temp_sensor_vin1";
+   };
+   vin1_eeprom: eeprom@50 {
+    compatible = "24c128";
+    reg = <0x50>;
+    pagesize = <64>;
+   };
+  };
+ };
+ s_apb@ec000000 {
+  pinctrl: pinctrl@0xec003000 {
+   vout0_pins: vout0@0 {
+    reg = <0>;
+    amb,pinmux-ids = <0x1075 0x1079
+     0x107a 0x107c 0x107d
+     0x107e 0x107f 0x1080 0x1081
+     0x1082 0x1083 0x1084 0x1085
+     0x1086 0x1087 0x1088>;
+    amb,pinconf-ids = <0xba0075 0xba0076 0xba0079
+     0xba007a 0xba007b 0xba007c 0xba007d
+     0xba007e 0xba007f 0xba0080 0xba0081
+     0xba0082 0xba0083 0xba0084 0xba0085
+     0xba0086 0xba0087 0xba0088>;
+   };
+  };
+ };
+ n_ahb@e0000000 {
+  sdmmc0: sdmmc0@e0004000 {
+   pinctrl-0 = <&sdmmc0_pins_4bit &sdmmc0_cd_pin &sdmmc0_wp_pin>;
+   bus-width = <4>;
+   v18-gpios = <&gpio 156 0x1>;
+  };
+  sdmmc1: sdmmc1@e0005000 {
+   pinctrl-0 = <&sdmmc1_pins_4bit>;
+   bus-width = <4>;
+   amb,fixed-cd = <1>;
+   amb,fixed-wp = <0>;
+   amb,sd-force-1_8v;
+   amb,sdio-v3-lv-enable;
+   no-sd;
+   no-mmc;
+   pwr-gpios = <&gpio 119 0x1>;
+   wifi@0 {
+    compatible = "brcm,bcm4329-fmac";
+    reg = <0>;
+   };
+  };
+  mac0: ethernet@e000e000 {
+   amb,tx-clk-invert;
+   pinctrl-0 = <&rgmii_pins &ahb_mdio_pins>;
+   amb,ahb-12mhz-div = <5>;
+   phy@0 {
+    reg = <0>;
+    rst-gpios = <&gpio 9 0>;
+   };
+  };
+  i2s0: i2s@e000d000 {
+   status = "disabled";
+  };
+        i2s1: i2s@e001d000 {
+   status = "disabled";
+  };
+  spi0: spi@e0011000 {
+   status = "ok";
+   cs-gpios = <&gpio 25 0>, <&gpio 26 0>;
+  };
+  uart2: uart@e0018000 {
+   status = "ok";
+  };
+  uart3: uart@e0019000 {
+   status = "ok";
+  };
+  hdmi@e000b000 {
+   status = "ok";
+   amb,i2c-adapter = <1>;
+  };
+ };
+ s_ahb@e8000000 {
+  rtc@e8001000 {
+   status = "ok";
+  };
+  rng@e8001000 {
+   status = "disabled";
+  };
+ };
+ bogus_bus {
+  wdt_tps3431@0 {
+   compatible = "wdt_tps3431";
+   en-gpio = <&gpio 103 0>;
+   trigger-gpio = <&gpio 104 0>;
+   trigger-interval = <40>;
+  };
+  ircut@4 {
+   compatible = "ap1551a";
+   reg = <4>;
+   sw1-gpio = <&gpio 6 0>;
+   sw2-gpio = <&gpio 5 1>;
+   dev-name = "iio:ir_cut_vin0";
+  };
+  ircut@5 {
+   compatible = "ap1551a";
+   reg = <5>;
+   sw1-gpio = <&gpio 2 0>;
+   sw2-gpio = <&gpio 1 1>;
+   dev-name = "iio:ir_cut_vin1";
+  };
+ };
+ iav {
+  vinc0 {
+  };
+  vinc1 {
+  };
+  hwtimer {
+   compatible = "ambarella,hwtimer";
+   interrupts = <0 25 0x1>;
+   interrupt-names = "hwtimer";
+  };
+ };
+ thermal-zones {
+  soc_thermal: soc-thermal {
+   polling-delay-passive = <250>;
+   polling-delay = <1000>;
+   thermal-sensors = <&ntc0>;
+   trips {
+    soc_alert: soc-alert {
+     temperature = <80000>;
+     hysteresis = <1000>;
+     type = "passive";
+    };
+    soc_crit: soc-crit {
+     temperature = <85000>;
+     hysteresis = <1000>;
+     type = "critical";
+    };
+   };
+  };
+ };
+};
+&gpio {
+ gpio-line-names =
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "wl-reg-on",
+  "", "", "", "bt-en", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "wl-pwr-en", "";
+ wl_pwr_en {
+  gpio-hog;
+  gpios = <158 0>;
+  output-high;
+ };
+};

@@ -1,0 +1,24 @@
+/ {
+ reserved-memory {
+  #address-cells = <1>;
+  #size-cells = <1>;
+  ranges;
+  linux,cma {
+   compatible = "shared-dma-pool";
+   reusable;
+   size = <0x02000000>;
+   linux,cma-default;
+  };
+  iav_reserved: iav@0x1a800000 {
+   compatible = "shared-dma-pool";
+   reusable;
+   reg = <0x1a800000 (0x40000000 - 0x1a800000 - 0x400000)>;
+  };
+ };
+ iav {
+  ambcma {
+   compatible = "ambarella,cma";
+   memory-region = <&iav_reserved>;
+  };
+ };
+};

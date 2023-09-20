@@ -1,0 +1,440 @@
+/dts-v1/;
+/include/ "ambarella-cv22.dtsi"
+/include/ "cv22_oclea_cma_low.dtsi"
+/ {
+ som_type = "Oclea CV22 uSoM";
+ model = "Oclea CV22 uSoM Breakout EVK";
+ compatible = "ambarella,cv22bub", "ambarella,cv22";
+ oclea-vin-version = <1>;
+ chosen {
+  bootargs = "console=ttyS0 ubi.mtd=##ROOT_DEVICE## root=ubi0:rootfs rw rootfstype=ubifs init=/sbin/init";
+ };
+ n_apb@e4000000 {
+  ntc0: ntc0 {
+   compatible = "joinset,ecth100505103f3435f";
+   pullup-uv = <1800000>;
+   pullup-ohm = <10000>;
+   pulldown-ohm = <0>;
+   io-channels = <&adc0 0>;
+   alias-name = "main-ntc";
+   #thermal-sensor-cells = <0>;
+  };
+  hwid {
+   compatible = "oclea,cv22_uSOM";
+   pullup-mv = <3300>;
+   io-channels = <&adc0 1>;
+   alias-name = "hwid";
+  };
+  adc0: adc@e4003000 {
+   status = "ok";
+   amb,channels-used = <0x03>;
+   #io-channel-cells = <1>;
+  };
+  i2c0: i2c@e4008000 {
+   status = "ok";
+   ambvin0@01 {
+    compatible = "ambarella,ambvin";
+    reg = <0x01>;
+   };
+   temp_sensor_vin0: temp_sensor_vin0@48 {
+    compatible = "ti,lm75a";
+    reg = <0x48>;
+    dev-name = "iio:temp_sensor_vin0";
+   };
+   vin0_eeprom: eeprom@50 {
+    compatible = "24c128";
+    reg = <0x50>;
+    pagesize = <64>;
+   };
+   ak4954: codec@12 {
+    compatible = "ambarella,ak4954";
+    #sound-dai-cells = <0>;
+    reg = <0x12>;
+    gpios = <&gpio 10 0x0>;
+    amb,dmic;
+   };
+   pmic_mp5424: pmic_mp5424@69 {
+    compatible = "pmic_mp5424";
+    reg = <0x69>;
+   };
+  };
+  i2c1: i2c@e4009000 {
+   status = "ok";
+  };
+  i2c2: i2c@e400a000 {
+   status = "disabled";
+  };
+  i2c3: i2c@e400b000 {
+   status = "ok";
+   pca9539: pca9539@74 {
+    compatible = "nxp,pca9539";
+    reg = <0x74>;
+    gpio-controller;
+    interrupt-parent = <&gpio>;
+    interrupt-controller;
+    #gpio-cells = <2>;
+    interrupts = <154 0x0>;
+    port-0-0 {
+     gpios = <0 0>;
+     output-low;
+    };
+    port-0-1 {
+     gpios = <1 0>;
+     output-low;
+    };
+    port-0-2 {
+     gpios = <2 0>;
+     output-low;
+    };
+    port-0-3 {
+     gpios = <3 0>;
+     output-low;
+    };
+    port-0-4 {
+     gpios = <4 0>;
+     output-low;
+    };
+    port-0-5 {
+     gpios = <5 0>;
+     output-low;
+    };
+    port-0-6 {
+     gpios = <6 0>;
+     output-low;
+    };
+    port-0-7 {
+     gpios = <7 0>;
+     output-low;
+    };
+   };
+   ambvin1@01 {
+    compatible = "ambarella,ambvin";
+    reg = <0x01>;
+   };
+   temp_sensor_vin1: temp_sensor_vin1@48 {
+    compatible = "ti,lm75a";
+    reg = <0x48>;
+    dev-name = "iio:temp_sensor_vin1";
+   };
+   vin1_eeprom: eeprom@50 {
+    compatible = "24c128";
+    reg = <0x50>;
+    pagesize = <64>;
+   };
+  };
+ };
+ s_apb@ec000000 {
+  pinctrl: pinctrl@0xec003000 {
+   vout0_pins: vout0@0 {
+    reg = <0>;
+    amb,pinmux-ids = <0x1075 0x1079
+     0x107a 0x107c 0x107d
+     0x107e 0x107f 0x1080 0x1081
+     0x1082 0x1083 0x1084 0x1085
+     0x1086 0x1087 0x1088>;
+    amb,pinconf-ids = <0xba0075 0xba0079
+     0xba007a 0xba007c 0xba007d
+     0xba007e 0xba007f 0xba0080 0xba0081
+     0xba0082 0xba0083 0xba0084 0xba0085
+     0xba0086 0xba0087 0xba0088>;
+   };
+  };
+ };
+ n_ahb@e0000000 {
+  sdmmc0: sdmmc0@e0004000 {
+   pinctrl-0 = <&sdmmc0_pins_4bit &sdmmc0_cd_pin &sdmmc0_wp_pin>;
+   bus-width = <4>;
+   v18-gpios = <&gpio 156 0x1>;
+  };
+  sdmmc1: sdmmc1@e0005000 {
+   pinctrl-0 = <&sdmmc1_pins_4bit>;
+   bus-width = <4>;
+   amb,fixed-cd = <1>;
+   amb,fixed-wp = <0>;
+   amb,sd-force-1_8v;
+   amb,sdio-v3-lv-enable;
+   no-sd;
+   no-mmc;
+   pwr-gpios = <&gpio 119 0x1>;
+   wifi@0 {
+    compatible = "brcm,bcm4329-fmac";
+    reg = <0>;
+   };
+  };
+  mac0: ethernet@e000e000 {
+   amb,tx-clk-invert;
+   pinctrl-0 = <&rgmii_pins &ahb_mdio_pins>;
+   amb,ahb-12mhz-div = <5>;
+   phy@0 {
+    reg = <0>;
+    rst-gpios = <&gpio 9 0>;
+   };
+  };
+  i2s0: i2s@e000d000 {
+   status = "disabled";
+  };
+  i2s1: i2s@e001d000 {
+   status = "ok";
+  };
+  spi0: spi@e0011000 {
+   status = "ok";
+   cs-gpios = <&gpio 25 0>, <&gpio 26 0>;
+  };
+  uart1: uart@e0017000 {
+   status = "disabled";
+  };
+  uart2: uart@e0018000 {
+   status = "ok";
+  };
+  uart3: uart@e0019000 {
+   status = "ok";
+  };
+  uart4: uart@e001a000 {
+   status = "ok";
+  };
+  hdmi@e000b000 {
+   status = "ok";
+   amb,i2c-adapter = <1>;
+  };
+ };
+ s_ahb@e8000000 {
+  rtc@e8001000 {
+   status = "ok";
+  };
+  rng@e8001000 {
+   status = "disabled";
+  };
+ };
+ rct@ed080000 {
+  usbphy: usbphy@ed080050 {
+   md-gpios = <&gpio 155 0x0>;
+  };
+ };
+ bogus_bus {
+  wdt_tps3431@0 {
+   compatible = "wdt_tps3431";
+   en-gpio = <&gpio 103 0>;
+   trigger-gpio = <&gpio 104 0>;
+   trigger-interval = <40>;
+  };
+  ircut@4 {
+   compatible = "ap1551a";
+   reg = <4>;
+   sw1-gpio = <&gpio 6 0>;
+   sw2-gpio = <&gpio 5 1>;
+   dev-name = "iio:ir_cut_vin0";
+  };
+  ircut@5 {
+   compatible = "ap1551a";
+   reg = <5>;
+   sw1-gpio = <&gpio 2 0>;
+   sw2-gpio = <&gpio 1 1>;
+   dev-name = "iio:ir_cut_vin1";
+  };
+  pwm_blue@0 {
+   compatible = "pwm-backlight";
+   reg = <0>;
+   pwms = <&pwm0 0 40000 0>;
+   pinctrl-names = "default";
+   pinctrl-0 = <&pwm0_pins_a>;
+   brightness-levels =
+    <0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+    16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31
+    32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47
+    48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63
+    64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79
+    80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95
+    96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111
+    112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127
+    128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143
+    144 145 146 147 148 149 150 151 152 153 154 155 156 157 158 159
+    160 161 162 163 164 165 166 167 168 169 170 171 172 173 174 175
+    176 177 178 179 180 181 182 183 184 185 186 187 188 189 190 191
+    192 193 194 195 196 197 198 199 200 201 202 203 204 205 206 207
+    208 209 210 211 212 213 214 215 216 217 218 219 220 221 222 223
+    224 225 226 227 228 229 230 231 232 233 234 235 236 237 238 239
+    240 241 242 243 244 245 246 247 248 249 250 251 252 253 254 255>;
+   default-brightness-level = <0>;
+  };
+  pwm_red@1 {
+   compatible = "pwm-backlight";
+   reg = <1>;
+   pwms = <&pwm0 1 40000 0>;
+   pinctrl-names = "default";
+   pinctrl-0 = <&pwm1_pins>;
+   brightness-levels =
+    <0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+    16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31
+    32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47
+    48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63
+    64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79
+    80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95
+    96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111
+    112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127
+    128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143
+    144 145 146 147 148 149 150 151 152 153 154 155 156 157 158 159
+    160 161 162 163 164 165 166 167 168 169 170 171 172 173 174 175
+    176 177 178 179 180 181 182 183 184 185 186 187 188 189 190 191
+    192 193 194 195 196 197 198 199 200 201 202 203 204 205 206 207
+    208 209 210 211 212 213 214 215 216 217 218 219 220 221 222 223
+    224 225 226 227 228 229 230 231 232 233 234 235 236 237 238 239
+    240 241 242 243 244 245 246 247 248 249 250 251 252 253 254 255>;
+   default-brightness-level = <0>;
+  };
+  pwm_green@2 {
+   compatible = "pwm-backlight";
+   reg = <20>;
+   pwms = <&pwm0 2 40000 0>;
+   pinctrl-names = "default";
+   pinctrl-0 = <&pwm2_pins>;
+   brightness-levels =
+    <0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+    16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31
+    32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47
+    48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63
+    64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79
+    80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95
+    96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111
+    112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127
+    128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143
+    144 145 146 147 148 149 150 151 152 153 154 155 156 157 158 159
+    160 161 162 163 164 165 166 167 168 169 170 171 172 173 174 175
+    176 177 178 179 180 181 182 183 184 185 186 187 188 189 190 191
+    192 193 194 195 196 197 198 199 200 201 202 203 204 205 206 207
+    208 209 210 211 212 213 214 215 216 217 218 219 220 221 222 223
+    224 225 226 227 228 229 230 231 232 233 234 235 236 237 238 239
+    240 241 242 243 244 245 246 247 248 249 250 251 252 253 254 255>;
+   default-brightness-level = <0>;
+  };
+  ir_led@3 {
+   compatible = "pwm-backlight";
+   reg = <3>;
+   pwms = <&pwm0 3 40000 0>;
+   pinctrl-names = "default";
+   pinctrl-0 = <&pwm3_pins_a>;
+   brightness-levels =
+    <0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+    16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31
+    32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47
+    48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63
+    64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79
+    80 81 82 83 84 85 86 87 88 89 90 91 92 93 94 95
+    96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111
+    112 113 114 115 116 117 118 119 120 121 122 123 124 125 126 127
+    128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143
+    144 145 146 147 148 149 150 151 152 153 154 155 156 157 158 159
+    160 161 162 163 164 165 166 167 168 169 170 171 172 173 174 175
+    176 177 178 179 180 181 182 183 184 185 186 187 188 189 190 191
+    192 193 194 195 196 197 198 199 200 201 202 203 204 205 206 207
+    208 209 210 211 212 213 214 215 216 217 218 219 220 221 222 223
+    224 225 226 227 228 229 230 231 232 233 234 235 236 237 238 239
+    240 241 242 243 244 245 246 247 248 249 250 251 252 253 254 255>;
+   default-brightness-level = <0>;
+  };
+ };
+ iav {
+  vinc0 {
+  };
+  vinc1 {
+  };
+  hwtimer {
+   compatible = "ambarella,hwtimer";
+   interrupts = <0 25 0x1>;
+   interrupt-names = "hwtimer";
+  };
+  vinbrg0 {
+   compatible = "ambarella,vinbrg";
+   bus-addr = <0x00000>;
+  };
+ };
+ clocks {
+  gclk_so: gclk-so {
+   assigned-clock-rates = <37125000>;
+  };
+ };
+ sound {
+  compatible = "ambarella,audio-board","simple-audio-card";
+  simple-audio-card,name = "ak4954 @ HAL";
+  simple-audio-card,mclk-fs = <256>;
+  simple-audio-card,widgets =
+   "Speaker", "Speaker",
+   "Microphone", "Mic Internal";
+  simple-audio-card,routing =
+   "LIN2", "Mic Internal",
+   "RIN2", "Mic Internal",
+   "Mic Bias MUX", "LIN2",
+   "Mic Bias", "Mic Bias MUX",
+   "LIN MUX", "Mic Bias",
+   "RIN MUX", "RIN2",
+   "ADC Left", "LIN MUX",
+   "ADC Right", "RIN MUX",
+   "MIC MUX", "ADC Left",
+   "MIC MUX", "ADC Right",
+   "PFSDO MUX", "MIC MUX",
+   "SDTO", "PFSDO MUX",
+   "PFDAC MUX", "SDTI",
+   "DAC MUX", "PFDAC MUX",
+   "DAC", "DAC MUX",
+   "SPKLO Mixer", "DAC",
+   "SPK Amp", "SPKLO Mixer",
+   "SPKLO MUX", "SPK Amp",
+   "SPKLO", "SPKLO MUX",
+   "Speaker", "SPKLO";
+  simple-audio-card,dai-link@0 {
+   format = "i2s";
+   cpu {
+    sound-dai = <&i2s1>;
+   };
+   codec {
+    sound-dai = <&ak4954>;
+   };
+  };
+ };
+ thermal-zones {
+  soc_thermal: soc-thermal {
+   polling-delay-passive = <250>;
+   polling-delay = <1000>;
+   thermal-sensors = <&ntc0>;
+   trips {
+    soc_alert: soc-alert {
+     temperature = <80000>;
+     hysteresis = <1000>;
+     type = "passive";
+    };
+    soc_crit: soc-crit {
+     temperature = <85000>;
+     hysteresis = <1000>;
+     type = "critical";
+    };
+   };
+  };
+ };
+};
+&gpio {
+ gpio-line-names =
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "wl-reg-on",
+  "", "", "", "bt-en", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "wl-pwr-en", "";
+ wl_pwr_en {
+  gpio-hog;
+  gpios = <158 0>;
+  output-high;
+ };
+};

@@ -1,0 +1,148 @@
+/dts-v1/;
+/include/ "s5l_oclea_cma.dtsi"
+/include/ "ambarella-s5l.dtsi"
+/ {
+ model = "Oclea S5L SoM Only";
+ compatible = "ambarella,hal", "ambarella,s5l";
+ oclea-vin-version = <2>;
+ chosen {
+  bootargs = "console=ttyS0 noinitrd root=##ROOT_DEVICE## rw rootfstype=ext4 rootwait init=/sbin/init";
+ };
+ reserved-memory {
+  #address-cells = <1>;
+  #size-cells = <1>;
+  ranges;
+  linux,cma {
+   compatible = "shared-dma-pool";
+   reusable;
+   size = <0x03800000>;
+   linux,cma-default;
+  };
+ };
+ apb@e8000000 {
+  ntc0: ntc0 {
+   compatible = "joinset,ecth100505103f3435f";
+   pullup-uv = <3300000>;
+   pullup-ohm = <10000>;
+   pulldown-ohm = <0>;
+   io-channels = <&adc0 0>;
+   alias-name = "main-ntc";
+   #thermal-sensor-cells = <0>;
+  };
+  hwid {
+   compatible = "oclea,s5l_uSOM";
+   pullup-mv = <3300>;
+   io-channels = <&adc0 1>;
+   alias-name = "hwid";
+  };
+  adc0: adc@e801d000 {
+   amb,channels-used = <0x0a>;
+   #io-channel-cells = <1>;
+  };
+  i2c0: i2c@e8003000 {
+   status = "ok";
+   ambvin0@01 {
+    compatible = "ambarella,ambvin";
+    reg = <0x01>;
+   };
+   temp_sensor_vin0: temp_sensor_vin0@48 {
+    compatible = "ti,lm75a";
+    reg = <0x48>;
+    dev-name = "iio:temp_sensor_vin0";
+   };
+   vin0_eeprom: eeprom@50 {
+    compatible = "24c128";
+    reg = <0x50>;
+    pagesize = <64>;
+   };
+  };
+  i2c1: i2c@e8001000 {
+   status = "ok";
+  };
+  i2c2: i2c@e8007000 {
+   status = "ok";
+   ambvin1@01 {
+    compatible = "ambarella,ambvin";
+    reg = <0x01>;
+   };
+   temp_sensor_vin1: temp_sensor_vin1@48 {
+    compatible = "ti,lm75a";
+    reg = <0x48>;
+    dev-name = "iio:temp_sensor_vin1";
+   };
+   vin1_eeprom: eeprom@50 {
+    compatible = "24c128";
+    reg = <0x50>;
+    pagesize = <64>;
+   };
+  };
+  ir@e8006000 {
+   status = "disabled";
+  };
+ };
+ ahb@e0000000 {
+  sdmmc0@e0002000 {
+   amb,emmc-boot;
+   amb,sd-force-1_8v;
+   amb,fixed-cd = <1>;
+  };
+  sdmmc2@e001f000 {
+   status = "disabled";
+  };
+  nand0: nand@e0001000 {
+   status = "disabled";
+  };
+  spi0: spi@e0020000 {
+   status = "disabled";
+  };
+  spi2: spi@e0022000 {
+   status = "ok";
+   cs-gpios = <&gpio 43 0>, <&gpio 44 0>;
+  };
+ };
+ rct@ec170000 {
+  usbphy: usbphy@ec170050 {
+   amb,ocp-polarity = <1>;
+   pinctrl-names = "default";
+   pinctrl-0 = <&usb_host0_pins>;
+  };
+ };
+ iav {
+  vinc0 {
+  };
+  vinc1 {
+  };
+  hwtimer {
+   compatible = "ambarella,hwtimer";
+   interrupts = <0 3 0x1>;
+   interrupt-names = "hwtimer";
+  };
+  ambcma {
+   compatible = "ambarella,cma";
+  };
+ };
+ clocks {
+  gclk_vo: gclk-vo {
+   assigned-clock-rates = <0> ;
+  };
+ };
+ thermal-zones {
+  soc_thermal: soc-thermal {
+   polling-delay-passive = <250>;
+   polling-delay = <1000>;
+   thermal-sensors = <&ntc0>;
+   trips {
+    soc_alert: soc-alert {
+     temperature = <80000>;
+     hysteresis = <1000>;
+     type = "passive";
+    };
+    soc_crit: soc-crit {
+     temperature = <85000>;
+     hysteresis = <1000>;
+     type = "critical";
+    };
+   };
+  };
+ };
+};

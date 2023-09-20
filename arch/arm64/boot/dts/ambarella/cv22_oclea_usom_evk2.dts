@@ -1,0 +1,350 @@
+/dts-v1/;
+/include/ "ambarella-cv22.dtsi"
+/include/ "cv22_oclea_cma_low.dtsi"
+/include/ "cv22_oclea_hydra_evk2.dtsi"
+/ {
+ som_type = "Oclea CV22 uSoM";
+ model = "Oclea CV22 Breakout EVK2";
+ compatible = "ambarella,cv22_oclea", "ambarella,cv22";
+ oclea-vin-version = <1>;
+ chosen {
+  bootargs = "console=ttyS0 ubi.mtd=##ROOT_DEVICE## root=ubi0:rootfs rw rootfstype=ubifs init=/sbin/init";
+ };
+ n_apb@e4000000 {
+  ntc0: ntc0 {
+   compatible = "joinset,ecth100505103f3435f";
+   pullup-uv = <1800000>;
+   pullup-ohm = <10000>;
+   pulldown-ohm = <0>;
+   io-channels = <&adc0 0>;
+   alias-name = "main-ntc";
+   #thermal-sensor-cells = <0>;
+  };
+  hwid {
+   compatible = "oclea,cv22_uSOM";
+   pullup-mv = <3300>;
+   io-channels = <&adc0 1>;
+   alias-name = "hwid";
+  };
+  adc0: adc@e4003000 {
+   status = "ok";
+   amb,channels-used = <0x03>;
+   #io-channel-cells = <1>;
+  };
+  i2c0: i2c@e4008000 {
+   status = "ok";
+   nau8810: codec@1a {
+    compatible = "nuvoton,nau8810";
+    #sound-dai-cells = <0>;
+    reg = <0x1a>;
+   };
+   pmic_mp5424: pmic_mp5424@69 {
+    compatible = "pmic_mp5424";
+    reg = <0x69>;
+   };
+   ina219: ina219@41 {
+    compatible = "ti,ina219";
+    reg = <0x41>;
+    shunt-resistor = <100000>;
+   };
+  };
+  i2c2: i2c@e400a000 {
+   status = "ok";
+   baseboard_gpio_expander: tca9539@74 {
+    compatible = "ti,tca9539";
+    reg = <0x74>;
+    gpio-controller;
+    interrupt-parent = <&gpio>;
+    interrupt-controller;
+    #gpio-cells = <2>;
+    gpio-line-names =
+    "", "", "", "", "", "", "", "",
+    "", "bt-en", "", "ir-led-gpio", "ir-led-en", "rs485-re", "eth-reset", "";
+    port-0-0 {
+     gpios = <0 0>;
+     output-low;
+    };
+    port-0-1 {
+     gpios = <1 0>;
+     output-low;
+    };
+    port-0-2 {
+     gpios = <2 0>;
+     output-low;
+    };
+    port-0-3 {
+     gpios = <3 0>;
+     output-low;
+    };
+    port-0-4 {
+     gpios = <4 0>;
+     output-low;
+    };
+    port-0-5 {
+     gpios = <5 0>;
+     output-low;
+    };
+    port-0-6 {
+     gpios = <6 0>;
+     output-low;
+    };
+    port-0-7 {
+     gpios = <7 0>;
+     output-low;
+    };
+    port-1-0 {
+     gpios = <8 0>;
+     output-low;
+    };
+    port-1-1 {
+     gpios = <9 0>;
+     output-low;
+    };
+    port-1-2 {
+     gpios = <10 0>;
+     output-low;
+    };
+    port-1-3 {
+     gpios = <11 0>;
+     output-low;
+    };
+    port-1-4 {
+     gpios = <12 0>;
+     output-low;
+    };
+    port-1-5 {
+     gpios = <13 0>;
+     output-low;
+    };
+    port-1-6 {
+     gpios = <14 0>;
+     output-low;
+    };
+    port-1-7 {
+     gpios = <15 0>;
+     output-low;
+    };
+   };
+   lm3644: ir_led@63 {
+    compatible = "ti,lm3644";
+    reg = <0x63>;
+    lm3644,hwen-gpio = <&baseboard_gpio_expander 12 0>;
+    lm3644,flash-timeout = <0x1>;
+    lm3644,pass-mode;
+    lm3644,disable-tx;
+   };
+   opt3001@44 {
+    compatible = "ti,opt3001";
+    reg = <0x44>;
+   };
+  };
+  i2c3: i2c@e400b000 {
+   status = "ok";
+  };
+ };
+ s_apb@ec000000 {
+  pinctrl: pinctrl@0xec003000 {
+   vout0_pins: vout0@0 {
+    reg = <0>;
+    amb,pinmux-ids = <0x1075 0x1079
+     0x107a 0x107c 0x107d
+     0x107e 0x107f 0x1080 0x1081
+     0x1082 0x1083 0x1084 0x1085
+     0x1086 0x1087 0x1088>;
+    amb,pinconf-ids = <0xba0075 0xba0076 0xba0079
+     0xba007a 0xba007b 0xba007c 0xba007d
+     0xba007e 0xba007f 0xba0080 0xba0081
+     0xba0082 0xba0083 0xba0084 0xba0085
+     0xba0086 0xba0087 0xba0088>;
+   };
+  };
+ };
+ n_ahb@e0000000 {
+  sdmmc0: sdmmc0@e0004000 {
+      pinctrl-0 = <&sdmmc0_pins_4bit &sdmmc0_cd_pin &sdmmc0_wp_pin>;
+      bus-width = <4>;
+      v18-gpios = <&gpio 156 0x1>;
+  };
+  sdmmc1: sdmmc1@e0005000 {
+      pinctrl-0 = <&sdmmc1_pins_4bit>;
+      bus-width = <4>;
+      amb,fixed-cd = <1>;
+      amb,fixed-wp = <0>;
+      amb,sd-force-1_8v;
+      amb,sdio-v3-lv-enable;
+      no-sd;
+      no-mmc;
+      pwr-gpios = <&gpio 119 0x1>;
+      wifi@0 {
+          compatible = "brcm,bcm4329-fmac";
+          reg = <0>;
+      };
+  };
+  mac0: ethernet@e000e000 {
+   pinctrl-0 = <&rgmii_pins &enet_2nd_ref_clk_pins_a>;
+   amb,ahb-12mhz-div = <5>;
+   amb,tx-clk-invert;
+   phy-mode = "rgmii-rxid";
+   phy@0 {
+    reg = <0>;
+    rst-gpios = <&baseboard_gpio_expander 14 0>;
+    rst-gpio-delay = <100>;
+   };
+  };
+  i2s0: i2s@e000d000 {
+   status = "ok";
+  };
+  i2s1: i2s@e001d000 {
+   status = "ok";
+  };
+  spi0: spi@e0011000 {
+   status = "ok";
+   cs-gpios = <&gpio 25 0>, <&gpio 26 0>;
+  };
+  hdmi@e000b000 {
+   status = "ok";
+   amb,i2c-adapter = <0>;
+  };
+  uart1: uart@e0017000 {
+   status = "ok";
+  };
+  uart2: uart@e0018000 {
+   status = "ok";
+  };
+  uart3: uart@e0019000 {
+   status = "ok";
+   /delete-property/ amb,txdma-used;
+   /delete-property/ amb,rxdma-used;
+  };
+ };
+ s_ahb@e8000000 {
+  rtc@e8001000 {
+   status = "ok";
+  };
+  rng@e8001000 {
+   status = "ok";
+  };
+ };
+ rct@ed080000 {
+  usbphy: usbphy@ed080050 {
+   pinctrl-names = "default";
+   pinctrl-0 = <&usb_host0_pins_c>;
+   md-gpios = <&gpio 107 0x0>;
+  };
+ };
+ pwm-leds {
+  compatible = "pwm-leds";
+  red {
+   label = "red";
+   pwms = <&pwm0 0 40000 0>;
+   max-brightness = <255>;
+  };
+  green {
+   label = "green";
+   pwms = <&pwm0 1 40000 0>;
+   max-brightness = <255>;
+  };
+  blue {
+   label = "blue";
+   pwms = <&pwm0 2 40000 0>;
+   max-brightness = <255>;
+  };
+ };
+ bogus_bus {
+  wdt_tps3431@0 {
+   compatible = "wdt_tps3431";
+   en-gpio = <&gpio 103 0>;
+   trigger-gpio = <&gpio 104 0>;
+   trigger-interval = <40>;
+  };
+  framebuffer1: framebuffer@1 {
+   compatible = "ambarella,fb";
+   reg = <1>;
+   amb,vout-id = <1>;
+   amb,format = "argb8888";
+   amb,max-width = <1280>;
+   amb,max-height = <720>;
+  };
+  mipi_dsi_ili9881c@0 {
+   status = "ok";
+   compatible = "ambarella,ili9881c";
+   rst-gpios = <&gpio 108 0x0>;
+  };
+ };
+ iav {
+  vinc0 {
+  };
+  vinc1 {
+  };
+  voutc0 {
+   pinctrl-names;
+   pinctrl-0;
+  };
+ };
+ sound {
+  compatible = "ambarella,audio-board","simple-audio-card";
+  simple-audio-card,name = "nau8810 @ AMBEVK";
+  simple-audio-card,mclk-fs = <256>;
+  simple-audio-card,widgets =
+  "Speaker", "Speaker";
+  simple-audio-card,routing =
+  "Speaker", "SPKOUTP",
+  "Speaker", "SPKOUTN";
+  simple-audio-card,dai-link@0 {
+   format = "i2s";
+   cpu {
+    sound-dai = <&i2s1>;
+   };
+   codec {
+    sound-dai = <&nau8810>;
+   };
+  };
+ };
+ thermal-zones {
+  soc_thermal: soc-thermal {
+   polling-delay-passive = <250>;
+   polling-delay = <1000>;
+   thermal-sensors = <&ntc0>;
+   trips {
+    soc_alert: soc-alert {
+     temperature = <80000>;
+     hysteresis = <1000>;
+     type = "passive";
+    };
+    soc_crit: soc-crit {
+     temperature = <85000>;
+     hysteresis = <1000>;
+     type = "critical";
+    };
+   };
+  };
+ };
+};
+&gpio {
+ gpio-line-names =
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "wl-reg-on",
+  "", "", "", "bt-en", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "wl-pwr-en", "";
+ wl_pwr_en {
+  gpio-hog;
+  gpios = <158 0>;
+  output-high;
+ };
+};

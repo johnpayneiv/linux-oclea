@@ -1,0 +1,17 @@
+/ {
+ iav {
+  hwtimer {
+   compatible = "ambarella,hwtimer";
+   interrupts = <0 25 0x1>;
+   interrupt-names = "hwtimer";
+  };
+ };
+ clocks {
+  pll_out_hdmi: pll_out_hdmi {
+   assigned-clock-rates = <270000000>;
+  };
+  gclk_so: gclk-so {
+   assigned-clock-rates = <37125000>;
+  };
+ };
+};

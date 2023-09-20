@@ -1,0 +1,216 @@
+/ {
+ n_apb@e4000000 {
+  i2c0: i2c@e4008000 {
+   status = "ok";
+   i2c-switch@73 {
+    compatible = "nxp,pca9546";
+    reg = <0x73>;
+    #address-cells = <1>;
+    #size-cells = <0>;
+    i2c-mux-idle-disconnect;
+    bus-num-start = <20>;
+    i2c@0 {
+     #address-cells = <1>;
+     #size-cells = <0>;
+     reg = <0>;
+     ambvin0@02 {
+      compatible = "ambarella,ambvin";
+      reg = <0x02>;
+     };
+    };
+    i2c@1 {
+     #address-cells = <1>;
+     #size-cells = <0>;
+     reg = <1>;
+     vin0_eeprom: eeprom@50 {
+      compatible = "24c128";
+      reg = <0x50>;
+      pagesize = <64>;
+     };
+     vin0_gpio: tca6408@20 {
+      compatible = "ti,tca6408";
+      reg = <0x20>;
+      gpio-controller;
+      gpio-base = <420>;
+      #gpio-cells = <2>;
+      port-0-0 {
+       gpios = <0 0>;
+      };
+      port-0-1 {
+       gpios = <1 0>;
+      };
+      port-0-2 {
+       gpios = <2 0>;
+      };
+      port-0-3 {
+       gpios = <3 0>;
+      };
+      port-0-4 {
+       gpios = <4 0>;
+      };
+      port-0-5 {
+       gpios = <5 0>;
+      };
+      port-0-6 {
+       gpios = <6 0>;
+      };
+      port-0-7 {
+       gpios = <7 0>;
+      };
+     };
+     temp_sensor_vin0: temp_sensor_vin0@48 {
+      compatible = "ti,lm75a";
+      reg = <0x48>;
+      dev-name = "iio:temp_sensor_vin0";
+     };
+    };
+   };
+   i2c-switch@72 {
+    compatible = "nxp,pca9546";
+    reg = <0x72>;
+    #address-cells = <1>;
+    #size-cells = <0>;
+    i2c-mux-idle-disconnect;
+    bus-num-start = <30>;
+    i2c@0 {
+     #address-cells = <1>;
+     #size-cells = <0>;
+     reg = <0>;
+     ambvin1@02 {
+      compatible = "ambarella,ambvin";
+      reg = <0x02>;
+     };
+    };
+    i2c@1 {
+     #address-cells = <1>;
+     #size-cells = <0>;
+     reg = <1>;
+     vin1_eeprom: eeprom@50 {
+      compatible = "24c128";
+      reg = <0x50>;
+      pagesize = <64>;
+     };
+     vin1_gpio: tca6408@20 {
+      compatible = "ti,tca6408";
+      reg = <0x20>;
+      gpio-controller;
+      gpio-base = <430>;
+      #gpio-cells = <2>;
+      port-0-0 {
+       gpios = <0 0>;
+      };
+      port-0-1 {
+       gpios = <1 0>;
+      };
+      port-0-2 {
+       gpios = <2 0>;
+      };
+      port-0-3 {
+       gpios = <3 0>;
+      };
+      port-0-4 {
+       gpios = <4 0>;
+      };
+      port-0-5 {
+       gpios = <5 0>;
+      };
+      port-0-6 {
+       gpios = <6 0>;
+      };
+      port-0-7 {
+       gpios = <7 0>;
+      };
+     };
+     temp_sensor_vin1: temp_sensor_vin1@48 {
+      compatible = "ti,lm75a";
+      reg = <0x48>;
+      dev-name = "iio:temp_sensor_vin1";
+     };
+    };
+   };
+   i2c-switch@71 {
+    compatible = "nxp,pca9546";
+    reg = <0x71>;
+    #address-cells = <1>;
+    #size-cells = <0>;
+    i2c-mux-idle-disconnect;
+    bus-num-start = <40>;
+    i2c@0 {
+     #address-cells = <1>;
+     #size-cells = <0>;
+     reg = <0>;
+     ambvin2@02 {
+      compatible = "ambarella,ambvin";
+      reg = <0x02>;
+     };
+    };
+    i2c@1 {
+     #address-cells = <1>;
+     #size-cells = <0>;
+     reg = <1>;
+     vin2_eeprom: eeprom@50 {
+      compatible = "24c128";
+      reg = <0x50>;
+      pagesize = <64>;
+     };
+     vin2_gpio: tca6408@20 {
+      compatible = "ti,tca6408";
+      reg = <0x20>;
+      gpio-controller;
+      gpio-base = <440>;
+      #gpio-cells = <2>;
+      port-0-0 {
+       gpios = <0 0>;
+      };
+      port-0-1 {
+       gpios = <1 0>;
+      };
+      port-0-2 {
+       gpios = <2 0>;
+      };
+      port-0-3 {
+       gpios = <3 0>;
+      };
+      port-0-4 {
+       gpios = <4 0>;
+      };
+      port-0-5 {
+       gpios = <5 0>;
+      };
+      port-0-6 {
+       gpios = <6 0>;
+      };
+      port-0-7 {
+       gpios = <7 0>;
+      };
+     };
+     temp_sensor_vin2: temp_sensor_vin2@48 {
+      compatible = "ti,lm75a";
+      reg = <0x48>;
+      dev-name = "iio:temp_sensor_vin2";
+     };
+    };
+   };
+  };
+ };
+ bogus_bus {
+  ircut@4 {
+   compatible = "ap1551a";
+   sw1-gpio = <&vin0_gpio 7 0>;
+   sw2-gpio = <&vin0_gpio 6 1>;
+   dev-name = "iio:ir_cut_vin0";
+  };
+  ircut@5 {
+   compatible = "ap1551a";
+   sw1-gpio = <&vin1_gpio 7 0>;
+   sw2-gpio = <&vin1_gpio 6 1>;
+   dev-name = "iio:ir_cut_vin1";
+  };
+  ircut@6 {
+   compatible = "ap1551a";
+   sw1-gpio = <&vin2_gpio 7 0>;
+   sw2-gpio = <&vin2_gpio 6 1>;
+   dev-name = "iio:ir_cut_vin2";
+  };
+ };
+};

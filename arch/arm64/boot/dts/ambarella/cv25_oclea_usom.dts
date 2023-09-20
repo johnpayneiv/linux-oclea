@@ -1,0 +1,211 @@
+/dts-v1/;
+/include/ "ambarella-cv25.dtsi"
+/ {
+ reserved-memory {
+  #address-cells = <1>;
+  #size-cells = <1>;
+  ranges;
+  linux,cma {
+   compatible = "shared-dma-pool";
+   reusable;
+   size = <0x03000000>;
+   linux,cma-default;
+  };
+  iav_reserved: iav@0x3E000000 {
+   compatible = "shared-dma-pool";
+   reusable;
+   reg = <0x3E000000 (0x60000000 - 0x3E000000)>;
+  };
+  cavalry_reserved: cavalry@0x60000000 {
+   compatible = "shared-dma-pool";
+   no-map;
+   reg = <0x60000000 (0x80000000 - 0x60000000 - 0x400000)>;
+  };
+ };
+ iav {
+  ambcma {
+   compatible = "ambarella,cma";
+   memory-region = <&iav_reserved>;
+  };
+ };
+ sub_scheduler: sub_scheduler0 {
+  compatible = "ambarella,sub-scheduler";
+  interrupts = <0 153 0x4>, <0 154 0x4>, <0 155 0x4>, <0 156 0x4>, <0 157 0x4>;
+  memory-region = <&cavalry_reserved>;
+ };
+};
+/ {
+ iav {
+  hwtimer {
+   compatible = "ambarella,hwtimer";
+   interrupts = <0 25 0x1>;
+   interrupt-names = "hwtimer";
+  };
+ };
+ sub_scheduler: sub_scheduler0 {
+  compatible = "ambarella,sub-scheduler";
+  interrupts = <0 153 0x4>, <0 154 0x4>, <0 155 0x4>, <0 156 0x4>, <0 157 0x4>;
+  memory-region = <&cavalry_reserved>;
+ };
+ clocks {
+  pll_out_hdmi: pll_out_hdmi {
+   assigned-clock-rates = <270000000>;
+  };
+  gclk_so: gclk-so {
+   assigned-clock-rates = <37125000>;
+  };
+ };
+};
+/ {
+ som_type = "Oclea CV25 SoM";
+ model = "Oclea CV25 SoM Only";
+ compatible = "ambarella,cv25_oclea", "ambarella,cv25";
+ oclea-vin-version = <2>;
+ chosen {
+  bootargs = "console=ttyS0 noinitrd root=##ROOT_DEVICE## rw rootfstype=ext4 rootwait init=/sbin/init";
+ };
+ n_apb@e4000000 {
+  ntc0: ntc0 {
+   compatible = "joinset,ecth100505103f3435f";
+   pullup-uv = <1800000>;
+   pullup-ohm = <10000>;
+   pulldown-ohm = <0>;
+   io-channels = <&adc0 0>;
+   alias-name = "main-ntc";
+   #thermal-sensor-cells = <0>;
+  };
+  hwid {
+   compatible = "oclea,cv25_uSOM";
+   pullup-mv = <3300>;
+   io-channels = <&adc0 1>;
+   alias-name = "hwid";
+  };
+  adc0: adc@e4003000 {
+   status = "ok";
+   amb,channels-used = <0x06>;
+   #io-channel-cells = <1>;
+  };
+  i2c0: i2c@e4008000 {
+   status = "ok";
+  };
+  i2c1: i2c@e4009000 {
+   status = "ok";
+   ambvin0@01 {
+    compatible = "ambarella,ambvin";
+    reg = <0x01>;
+   };
+   temp_sensor_vin0: temp_sensor_vin0@48 {
+    compatible = "ti,lm75a";
+    reg = <0x48>;
+    dev-name = "iio:temp_sensor_vin0";
+   };
+   pmic_mp5424: pmic_mp5424@69 {
+    compatible = "pmic_mp5424";
+    reg = <0x69>;
+   };
+   vin0_eeprom: eeprom@50 {
+    compatible = "24c128";
+    reg = <0x50>;
+    pagesize = <64>;
+   };
+  };
+  i2c2: i2c@e400a000 {
+   status = "ok";
+   ambvin1@01 {
+    compatible = "ambarella,ambvin";
+    reg = <0x01>;
+   };
+   temp_sensor_vin1: temp_sensor_vin1@48 {
+    compatible = "ti,lm75a";
+    reg = <0x48>;
+    dev-name = "iio:temp_sensor_vin1";
+   };
+   vin1_eeprom: eeprom@50 {
+    compatible = "24c128";
+    reg = <0x50>;
+    pagesize = <64>;
+   };
+  };
+  i2c3: i2c@e400b000 {
+   status = "disabled";
+  };
+ };
+ n_ahb@e0000000 {
+  nand0: nand@e0002000 {
+   status = "disabled";
+  };
+  sdmmc0: sdmmc0@e0004000 {
+   v18-gpios = <&gpio 105 0x1>;
+   amb,fixed-cd = <1>;
+  };
+  sdmmc1: sdmmc1@e0005000 {
+   pwr-gpios = <&gpio 80 0x1>;
+   status = "disabled";
+  };
+  sdmmc2: sdmmc2@e0016000 {
+   status = "disabled";
+  };
+  mac0: ethernet@e000e000 {
+   status = "disabled";
+  };
+  spi0: spi@e0011000 {
+   status = "disabled";
+  };
+  spi1: spi@e0012000 {
+   status = "disabled";
+  };
+  hdmi@e000b000 {
+   amb,i2c-adapter = <0>;
+  };
+ };
+ s_ahb@e8000000 {
+  rtc@e8001000 {
+   status = "ok";
+  };
+  rng@e8001000 {
+   status = "ok";
+  };
+ };
+ rct@ed080000 {
+  usbphy: usbphy@ed080050 {
+   md-gpios = <&gpio 80 0x0>;
+  };
+ };
+ bogus_bus {
+  wdt_tps3431@0 {
+   compatible = "wdt_tps3431";
+   en-gpio = <&gpio 107 0>;
+   trigger-gpio = <&gpio 106 0>;
+   trigger-interval = <40>;
+  };
+ };
+ iav {
+  vinc0 {
+  };
+  vinc1 {
+  };
+  voutc0 {
+   pinctrl-names;
+   pinctrl-0;
+  };
+ };
+ thermal-zones {
+  soc_thermal: soc-thermal {
+   polling-delay-passive = <250>;
+   polling-delay = <1000>;
+   thermal-sensors = <&ntc0>;
+   trips {
+    soc_alert: soc-alert {
+     temperature = <80000>;
+     hysteresis = <1000>;
+     type = "passive";
+    };
+    soc_crit: soc-crit {
+     temperature = <85000>;
+     hysteresis = <1000>;
+     type = "critical";
+    };
+   };
+  };
+ };
+};

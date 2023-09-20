@@ -1,0 +1,42 @@
+/ {
+ reserved-memory {
+  #address-cells = <1>;
+  #size-cells = <1>;
+  ranges;
+  linux,cma {
+   compatible = "shared-dma-pool";
+   reusable;
+   size = <0x04800000>;
+   linux,cma-default;
+  };
+ };
+ iav {
+  ambcma {
+   compatible = "ambarella,cma";
+  };
+  hwtimer {
+   compatible = "ambarella,hwtimer";
+   interrupts = <0 25 0x1>;
+   interrupt-names = "hwtimer";
+  };
+ };
+ sub_scheduler: sub_scheduler0 {
+  compatible = "ambarella,sub-scheduler";
+  interrupts = <0 153 0x4>, <0 154 0x4>, <0 155 0x4>, <0 156 0x4>, <0 157 0x4>;
+ };
+ cv_shm {
+  reg = <0x60000000 (0x80000000 - 0x60000000)>;
+  device_type = "cv_shm";
+ };
+ clocks {
+  pll_out_vo2: pll_out_vo2 {
+   assigned-clock-rates = <0>;
+  };
+  pll_out_hdmi: pll_out_hdmi {
+   assigned-clock-rates = <0>;
+  };
+  gclk_so: gclk-so {
+   assigned-clock-rates = <0>;
+  };
+ };
+};
