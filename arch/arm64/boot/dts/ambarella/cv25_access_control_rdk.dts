@@ -1,0 +1,231 @@
+/dts-v1/;
+/include/ "ambarella-cv25.dtsi"
+/include/ "cv25_oclea_cma.dtsi"
+/include/ "cv25_oclea_private.dtsi"
+/ {
+ som_type = "Oclea CV25 SoM";
+ model = "Oclea CV25 Access Control RDK Rev A";
+ compatible = "ambarella,cv25_oclea", "ambarella,cv25";
+ oclea-vin-version = <1>;
+ chosen {
+  bootargs = "console=ttyS0 noinitrd root=##ROOT_DEVICE## rw rootfstype=ext4 rootwait init=/sbin/init";
+ };
+ n_apb@e4000000 {
+  ntc0: ntc0 {
+   compatible = "joinset,ecth100505103f3435f";
+   pullup-uv = <1800000>;
+   pullup-ohm = <10000>;
+   pulldown-ohm = <0>;
+   io-channels = <&adc0 0>;
+   alias-name = "main-ntc";
+   #thermal-sensor-cells = <0>;
+  };
+  hwid {
+   compatible = "oclea,cv25_uSOM";
+   pullup-mv = <3300>;
+   io-channels = <&adc0 1>;
+   alias-name = "hwid";
+  };
+  adc0: adc@e4003000 {
+   status = "ok";
+   amb,channels-used = <0x06>;
+   #io-channel-cells = <1>;
+  };
+  board_rev {
+   compatible = "oclea,gpio_version";
+   gpios =
+    <&gpio 55 0>,
+    <&gpio 54 0>,
+    <&gpio 53 0>,
+    <&gpio 52 0>;
+   versions = "A", "B";
+   alias-name = "board_rev";
+  };
+  i2c0: i2c@e4008000 {
+   status = "ok";
+  };
+  i2c1: i2c@e4009000 {
+   status = "ok";
+   ambvin0@01 {
+    compatible = "ambarella,ambvin";
+    reg = <0x01>;
+   };
+   pmic_mp5424: pmic_mp5424@69 {
+    compatible = "pmic_mp5424";
+    reg = <0x69>;
+   };
+   mcp3021@4b {
+    compatible = "microchip,mcp3021";
+    reg = <0x4b>;
+    reference-voltage-microvolt = <3300000>;
+   };
+  };
+  i2c2: i2c@e400a000 {
+   status = "ok";
+   ak4951: codec@12 {
+    compatible = "ambarella,ak4951";
+    #sound-dai-cells = <0>;
+    reg = <0x12>;
+    gpios = <&gpio 46 0x0>;
+    amb,dmic;
+   };
+  };
+  i2c3: i2c@e400b000 {
+   status = "disabled";
+  };
+ };
+ n_ahb@e0000000 {
+  nand0: nand@e0002000 {
+   status = "disabled";
+  };
+  sdmmc0: sdmmc0@e0004000 {
+   v18-gpios = <&gpio 105 0x1>;
+   amb,fixed-cd = <1>;
+  };
+  sdmmc1: sdmmc1@e0005000 {
+   pwr-gpios = <&gpio 80 0x1>;
+   status = "disabled";
+  };
+  sdmmc2: sdmmc2@e0016000 {
+   status = "ok";
+   pinctrl-0 = <&sdmmc2_pins_4bit &sdmmc2_cd_pin>;
+   bus-width = <4>;
+   no-1-8-v;
+   amb,fixed-wp = <0>;
+  };
+  uart1: uart@e0017000 {
+   pinctrl-0 = <&uart1_pins>;
+   status = "ok";
+  };
+  uart2: uart@e0018000 {
+   status = "ok";
+  };
+  mac0: ethernet@e000e000 {
+   pinctrl-0 = <&rmii_pins>;
+   phy-mode = "rmii";
+   amb,tx-clk-invert;
+   phy@0 {
+    reg = <0>;
+    rst-gpios = <&gpio 77 0x0>;
+    lock-names = "rmii-ref";
+    clocks = <&pll_out_enet 0>;
+   };
+  };
+  spi0: spi@e0011000 {
+   status = "disabled";
+  };
+  spi1: spi@e0012000 {
+   status = "disabled";
+  };
+  hdmi@e000b000 {
+   amb,i2c-adapter = <0>;
+  };
+ };
+ s_ahb@e8000000 {
+  rtc@e8001000 {
+   status = "ok";
+  };
+  rng@e8001000 {
+   status = "ok";
+  };
+ };
+ bogus_bus {
+  wdt_tps3431@0 {
+   compatible = "wdt_tps3431";
+   en-gpio = <&gpio 107 0>;
+   trigger-gpio = <&gpio 106 0>;
+   trigger-interval = <40>;
+  };
+ };
+ iav {
+  vinc0 {
+   vinrst-gpios = <&gpio 96 0>;
+  };
+  vinc1 {
+  };
+  voutc0 {
+   pinctrl-names;
+   pinctrl-0;
+  };
+  custom-led {
+   status = "ok";
+   vinc_id = <0>;
+   structured-led-gpio = <&gpio 21 1>;
+   structured-led-time-ms = <5>;
+   ir-led-gpio = <&gpio 19 1>;
+   ir-led-mode = <2>;
+   ir-time-ms = <10>;
+  };
+ };
+ sound {
+  compatible = "ambarella,audio-board";
+  simple-audio-card,name = "ak4951 @ HAL";
+  simple-audio-card,mclk-fs = <256>;
+  simple-audio-card,widgets =
+  "Speaker", "Speaker",
+  "Microphone", "Mic Internal";
+  simple-audio-card,routing =
+  "DMICLIN", "Mic Internal",
+  "DMICRIN", "Mic Internal",
+  "DMICL", "DMICLIN",
+  "DMICR", "DMICRIN",
+  "MIC MUX", "DMICL",
+  "MIC MUX", "DMICR",
+  "PFSDO MUX", "MIC MUX",
+  "SDTO", "PFSDO MUX",
+  "PFDAC MUX", "SDTI",
+  "DAC", "PFDAC MUX",
+  "SPKLO Mixer", "DAC",
+  "SPK Amp", "SPKLO Mixer",
+  "SPKLO MUX", "SPK Amp",
+  "SPKLO", "SPKLO MUX",
+  "Speaker", "SPKLO";
+  simple-audio-card,dai-link@0 {
+   format = "i2s";
+   cpu {
+    sound-dai = <&i2s0>;
+   };
+   codec {
+    sound-dai = <&ak4951>;
+   };
+  };
+ };
+ thermal-zones {
+  soc_thermal: soc-thermal {
+   polling-delay-passive = <250>;
+   polling-delay = <1000>;
+   thermal-sensors = <&ntc0>;
+   trips {
+    soc_alert: soc-alert {
+    temperature = <80000>;
+    hysteresis = <1000>;
+    type = "passive";
+    };
+    soc_crit: soc-crit {
+    temperature = <85000>;
+    hysteresis = <1000>;
+    type = "critical";
+    };
+   };
+  };
+ };
+};
+&gpio {
+    gpio-line-names =
+  "", "", "", "", "", "sl-led-en", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "ir-led-en", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "tamper-photo-int", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "out-r2-dry", "out-r1-wet", "in-aux-lv", "in-door-lv", "", "in-exit-lv", "",
+  "out-r1-dry", "", "tamper-imu-int", "", "", "", "", "",
+  "", "", "uart1-rts", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "";
+};

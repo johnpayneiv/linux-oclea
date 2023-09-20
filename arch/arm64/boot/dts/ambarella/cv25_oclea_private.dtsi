@@ -1,0 +1,22 @@
+/ {
+ iav {
+  hwtimer {
+   compatible = "ambarella,hwtimer";
+   interrupts = <0 25 0x1>;
+   interrupt-names = "hwtimer";
+  };
+ };
+ sub_scheduler: sub_scheduler0 {
+  compatible = "ambarella,sub-scheduler";
+  interrupts = <0 153 0x4>, <0 154 0x4>, <0 155 0x4>, <0 156 0x4>, <0 157 0x4>;
+  memory-region = <&cavalry_reserved>;
+ };
+ clocks {
+  pll_out_hdmi: pll_out_hdmi {
+   assigned-clock-rates = <270000000>;
+  };
+  gclk_so: gclk-so {
+   assigned-clock-rates = <37125000>;
+  };
+ };
+};

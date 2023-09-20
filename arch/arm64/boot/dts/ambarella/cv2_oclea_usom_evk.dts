@@ -1,0 +1,564 @@
+/dts-v1/;
+/include/ "ambarella-cv2.dtsi"
+/ {
+ reserved-memory {
+  #address-cells = <1>;
+  #size-cells = <1>;
+  ranges;
+  linux,cma {
+   compatible = "shared-dma-pool";
+   reusable;
+   size = <0x03000000>;
+   linux,cma-default;
+  };
+  iav_reserved: iav@0x3E000000 {
+   compatible = "shared-dma-pool";
+   reusable;
+   reg = <0x3E000000 (0x60000000 - 0x3E000000)>;
+  };
+  cavalry_reserved: cavalry@0x60000000 {
+   compatible = "shared-dma-pool";
+   no-map;
+   reg = <0x60000000 (0x80000000 - 0x60000000 - 0x400000)>;
+  };
+ };
+ iav {
+  ambcma {
+   compatible = "ambarella,cma";
+   memory-region = <&iav_reserved>;
+  };
+ };
+ sub_scheduler: sub_scheduler0 {
+  compatible = "ambarella,sub-scheduler";
+  interrupts = <0 153 0x4>, <0 154 0x4>, <0 155 0x4>, <0 156 0x4>, <0 157 0x4>;
+  memory-region = <&cavalry_reserved>;
+ };
+};
+/ {
+ iav {
+  hwtimer {
+   compatible = "ambarella,hwtimer";
+   interrupts = <0 25 0x1>;
+   interrupt-names = "hwtimer";
+  };
+ };
+ clocks {
+  pll_out_hdmi: pll_out_hdmi {
+   assigned-clock-rates = <270000000>;
+  };
+  gclk_so: gclk-so {
+   assigned-clock-rates = <37125000>;
+  };
+ };
+};
+/ {
+ n_apb@e4000000 {
+  i2c2: i2c@e400a000 {
+   status = "ok";
+   i2c-switch@73 {
+    compatible = "nxp,pca9546";
+    reg = <0x73>;
+    #address-cells = <1>;
+    #size-cells = <0>;
+    i2c-mux-idle-disconnect;
+    bus-num-start = <20>;
+    i2c@0 {
+     #address-cells = <1>;
+     #size-cells = <0>;
+     reg = <0>;
+     ambvin0@02 {
+      compatible = "ambarella,ambvin";
+      reg = <0x02>;
+     };
+    };
+    i2c@1 {
+     #address-cells = <1>;
+     #size-cells = <0>;
+     reg = <1>;
+     vin0_eeprom: eeprom@50 {
+      compatible = "24c128";
+      reg = <0x50>;
+      pagesize = <64>;
+     };
+     vin0_gpio: tca6408@20 {
+      compatible = "ti,tca6408";
+      reg = <0x20>;
+      gpio-controller;
+      gpio-base = <420>;
+      #gpio-cells = <2>;
+      port-0-0 {
+       gpios = <0 0>;
+      };
+      port-0-1 {
+       gpios = <1 0>;
+      };
+      port-0-2 {
+       gpios = <2 0>;
+      };
+      port-0-3 {
+       gpios = <3 0>;
+      };
+      port-0-4 {
+       gpios = <4 0>;
+      };
+      port-0-5 {
+       gpios = <5 0>;
+      };
+      port-0-6 {
+       gpios = <6 0>;
+      };
+      port-0-7 {
+       gpios = <7 0>;
+      };
+     };
+     temp_sensor_vin0: temp_sensor_vin0@48 {
+      compatible = "ti,lm75a";
+      reg = <0x48>;
+      dev-name = "iio:temp_sensor_vin0";
+     };
+    };
+   };
+   i2c-switch@75 {
+    compatible = "nxp,pca9546";
+    reg = <0x75>;
+    #address-cells = <1>;
+    #size-cells = <0>;
+    i2c-mux-idle-disconnect;
+    bus-num-start = <40>;
+    i2c@0 {
+     #address-cells = <1>;
+     #size-cells = <0>;
+     reg = <0>;
+     ambvin2@02 {
+      compatible = "ambarella,ambvin";
+      reg = <0x02>;
+     };
+    };
+    i2c@1 {
+     #address-cells = <1>;
+     #size-cells = <0>;
+     reg = <1>;
+     vin2_eeprom: eeprom@50 {
+      compatible = "24c128";
+      reg = <0x50>;
+      pagesize = <64>;
+     };
+     vin2_gpio: tca6408@20 {
+      compatible = "ti,tca6408";
+      reg = <0x20>;
+      gpio-controller;
+      gpio-base = <440>;
+      #gpio-cells = <2>;
+      port-0-0 {
+       gpios = <0 0>;
+      };
+      port-0-1 {
+       gpios = <1 0>;
+      };
+      port-0-2 {
+       gpios = <2 0>;
+      };
+      port-0-3 {
+       gpios = <3 0>;
+      };
+      port-0-4 {
+       gpios = <4 0>;
+      };
+      port-0-5 {
+       gpios = <5 0>;
+      };
+      port-0-6 {
+       gpios = <6 0>;
+      };
+      port-0-7 {
+       gpios = <7 0>;
+      };
+     };
+     temp_sensor_vin2: temp_sensor_vin2@48 {
+      compatible = "ti,lm75a";
+      reg = <0x48>;
+      dev-name = "iio:temp_sensor_vin2";
+     };
+    };
+   };
+  };
+  i2c3: i2c@e400b000 {
+   status = "ok";
+   i2c-switch1@73 {
+    compatible = "nxp,pca9546";
+    reg = <0x73>;
+    #address-cells = <1>;
+    #size-cells = <0>;
+    i2c-mux-idle-disconnect;
+    bus-num-start = <50>;
+    i2c@0 {
+     #address-cells = <1>;
+     #size-cells = <0>;
+     reg = <0>;
+     ambvin3@02 {
+      compatible = "ambarella,ambvin";
+      reg = <0x02>;
+     };
+    };
+    i2c@1 {
+     #address-cells = <1>;
+     #size-cells = <0>;
+     reg = <1>;
+     vin3_eeprom: eeprom@50 {
+      compatible = "24c128";
+      reg = <0x50>;
+      pagesize = <64>;
+     };
+     vin3_gpio: tca6408@20 {
+      compatible = "ti,tca6408";
+      reg = <0x20>;
+      gpio-controller;
+      gpio-base = <450>;
+      #gpio-cells = <2>;
+      port-0-0 {
+       gpios = <0 0>;
+      };
+      port-0-1 {
+       gpios = <1 0>;
+      };
+      port-0-2 {
+       gpios = <2 0>;
+      };
+      port-0-3 {
+       gpios = <3 0>;
+      };
+      port-0-4 {
+       gpios = <4 0>;
+      };
+      port-0-5 {
+       gpios = <5 0>;
+      };
+      port-0-6 {
+       gpios = <6 0>;
+      };
+      port-0-7 {
+       gpios = <7 0>;
+      };
+     };
+     temp_sensor_vin3: temp_sensor_vin3@48 {
+      compatible = "ti,lm75a";
+      reg = <0x48>;
+      dev-name = "iio:temp_sensor_vin3";
+     };
+    };
+   };
+   i2c-switch1@75 {
+    compatible = "nxp,pca9546";
+    reg = <0x75>;
+    #address-cells = <1>;
+    #size-cells = <0>;
+    i2c-mux-idle-disconnect;
+    bus-num-start = <30>;
+    i2c@0 {
+     #address-cells = <1>;
+     #size-cells = <0>;
+     reg = <0>;
+     ambvin1@02 {
+      compatible = "ambarella,ambvin";
+      reg = <0x02>;
+     };
+    };
+    i2c@1 {
+     #address-cells = <1>;
+     #size-cells = <0>;
+     reg = <1>;
+     vin1_eeprom: eeprom@50 {
+      compatible = "24c128";
+      reg = <0x50>;
+      pagesize = <64>;
+     };
+     vin1_gpio: tca6408@20 {
+      compatible = "ti,tca6408";
+      reg = <0x20>;
+      gpio-controller;
+      gpio-base = <430>;
+      #gpio-cells = <2>;
+      port-0-0 {
+       gpios = <0 0>;
+      };
+      port-0-1 {
+       gpios = <1 0>;
+      };
+      port-0-2 {
+       gpios = <2 0>;
+      };
+      port-0-3 {
+       gpios = <3 0>;
+      };
+      port-0-4 {
+       gpios = <4 0>;
+      };
+      port-0-5 {
+       gpios = <5 0>;
+      };
+      port-0-6 {
+       gpios = <6 0>;
+      };
+      port-0-7 {
+       gpios = <7 0>;
+      };
+     };
+     temp_sensor_vin1: temp_sensor_vin1@48 {
+      compatible = "ti,lm75a";
+      reg = <0x48>;
+      dev-name = "iio:temp_sensor_vin1";
+     };
+    };
+   };
+  };
+ };
+ bogus_bus {
+  ircut@4 {
+   compatible = "ap1551a";
+   sw1-gpio = <&vin0_gpio 7 0>;
+   sw2-gpio = <&vin0_gpio 6 1>;
+   dev-name = "iio:ir_cut_vin0";
+  };
+  ircut@5 {
+   compatible = "ap1551a";
+   sw1-gpio = <&vin1_gpio 7 0>;
+   sw2-gpio = <&vin1_gpio 6 1>;
+   dev-name = "iio:ir_cut_vin1";
+  };
+  ircut@6 {
+   compatible = "ap1551a";
+   sw1-gpio = <&vin2_gpio 7 0>;
+   sw2-gpio = <&vin2_gpio 6 1>;
+   dev-name = "iio:ir_cut_vin2";
+  };
+  ircut@7 {
+   compatible = "ap1551a";
+   sw1-gpio = <&vin3_gpio 7 0>;
+   sw2-gpio = <&vin3_gpio 6 1>;
+   dev-name = "iio:ir_cut_vin3";
+  };
+ };
+};
+/ {
+ som_type = "Oclea CV2 SoM";
+ model = "Oclea CV2 Breakout EVK";
+ compatible = "ambarella,cv2_oclea", "ambarella,cv2";
+ chosen {
+  bootargs = "console=ttyS0 noinitrd root=##ROOT_DEVICE## rw rootfstype=ext4 rootwait init=/sbin/init";
+ };
+        s_apb:s_apb@ec000000 {
+                wdt@ec002000 {
+                        status = "ok";
+                };
+ };
+ n_apb@e4000000 {
+  i2c0: i2c@e4008000 {
+   status = "ok";
+   nau8810: codec@1a {
+    compatible = "nuvoton,nau8810";
+    #sound-dai-cells = <0>;
+    reg = <0x1a>;
+   };
+  };
+  i2c1: i2c@e4009000 {
+   status = "ok";
+  };
+  i2c2: i2c@e400a000 {
+   status = "ok";
+   baseboard_gpio_expander: tca9539@74 {
+    compatible = "ti,tca9539";
+    reg = <0x74>;
+    gpio-controller;
+    interrupt-parent = <&gpio>;
+    interrupt-controller;
+    #gpio-cells = <2>;
+    gpio-line-names =
+     "", "", "", "", "", "rgb-red", "rgb-green", "rgb-blue",
+     "", "bt-en", "", "ir-led-gpio", "", "rs485-re", "eth-reset", "";
+    port-0-0 {
+     gpios = <0 0>;
+     output-low;
+    };
+    port-0-1 {
+     gpios = <1 0>;
+     output-low;
+    };
+    port-0-2 {
+     gpios = <2 0>;
+     output-low;
+    };
+    port-0-3 {
+     gpios = <3 0>;
+     output-low;
+    };
+    port-0-4 {
+     gpios = <4 0>;
+     output-low;
+    };
+    port-0-5 {
+     gpios = <5 0>;
+     output-low;
+    };
+    port-0-6 {
+     gpios = <6 0>;
+     output-low;
+    };
+    port-0-7 {
+     gpios = <7 0>;
+     output-low;
+    };
+    port-1-0 {
+     gpios = <8 0>;
+     output-low;
+    };
+    port-1-1 {
+     gpios = <9 0>;
+     output-low;
+    };
+    port-1-2 {
+     gpios = <10 0>;
+     output-low;
+    };
+    port-1-3 {
+     gpios = <11 0>;
+     output-low;
+    };
+    port-1-4 {
+     gpios = <12 0>;
+     output-low;
+    };
+    port-1-5 {
+     gpios = <13 0>;
+     output-low;
+    };
+    port-1-6 {
+     gpios = <14 0>;
+     output-low;
+    };
+    port-1-7 {
+     gpios = <15 0>;
+     output-low;
+    };
+   };
+   lm3644: ir_led@63 {
+    compatible = "ti,lm3644";
+    reg = <0x63>;
+    lm3644,hwen-gpio = <&baseboard_gpio_expander 12 0>;
+    lm3644,flash-timeout = <0x1>;
+    lm3644,pass-mode;
+    lm3644,disable-tx;
+   };
+   opt3001@44 {
+    compatible = "ti,opt3001";
+    reg = <0x44>;
+   };
+  };
+  i2c3: i2c@e400b000 {
+   status = "ok";
+  };
+  ir@e4001000 {
+   status = "ok";
+   linux,rc-map-name = "rc-rc6-mce";
+  };
+  adc@e4003000 {
+   status = "ok";
+  };
+ };
+ n_ahb@e0000000 {
+  sdmmc0: sdmmc0@e0004000 {
+   amb,fixed-cd = <1>;
+   pinctrl-0 = <&sdmmc0_pins_8bit>;
+  };
+  sdmmc1: sdmmc1@e0005000 {
+   amb,fixed-wp = <0>;
+   pinctrl-0 = <&sdmmc1_pins_4bit &sdmmc1_cd_pin>;
+   pwr-gpios = <&gpio 71 0x1>;
+  };
+  spi0: spi@e0011000 {
+   status = "disabled";
+   cs-gpios = <&gpio 25 0>, <&gpio 26 0>;
+  };
+  i2s0: i2s@e000d000 {
+   status = "ok";
+  };
+  i2s1: i2s@e001d000 {
+   status = "disabled";
+  };
+  mac0: ethernet@e000e000 {
+   amb,tx-clk-invert;
+   amb,override-phy-type;
+   phy-mode = "rgmii-rxid";
+   phy@0 {
+    reg = <0>;
+    rst-gpios = <&gpio 165 0x0>;
+    rst-gpio-delay = <100>;
+   };
+  };
+  uart1: uart@e0016000 {
+   status = "ok";
+  };
+  uart2: uart@e0017000 {
+   status = "ok";
+  };
+  uart3: uart@e0018000 {
+   status = "ok";
+  };
+  uart4: uart@e0019000 {
+   status = "ok";
+  };
+ };
+ s_ahb@e8000000 {
+  hdmi@e8007000 {
+   pinctrl-0 = <&hdmi_hpd_pins &hdmi_cec_pins>;
+   amb,i2c-adapter = <1>;
+   status = "ok";
+  };
+ };
+ bogus_bus {
+  pwm_bl@0 {
+   compatible = "pwm-backlight";
+   reg = <0>;
+   pwms = <&pwm0 0 40000 0>;
+   pinctrl-names = "default";
+   pinctrl-0 = <&pwm0_pins_a>;
+   brightness-levels = <0 4 8 16 32 64 128 255>;
+   default-brightness-level = <7>;
+  };
+ };
+ iav {
+  vinc0 {
+  };
+  vinc1 {
+  };
+ };
+ sound {
+  compatible = "ambarella,audio-board","simple-audio-card";
+  simple-audio-card,name = "nau8810 @ AMBEVK";
+  simple-audio-card,mclk-fs = <256>;
+  simple-audio-card,widgets =
+  "Speaker", "Speaker";
+  simple-audio-card,routing =
+  "Speaker", "SPKOUTP",
+  "Speaker", "SPKOUTN";
+  simple-audio-card,dai-link@0 {
+   format = "i2s";
+   cpu {
+    sound-dai = <&i2s0>;
+   };
+   codec {
+    sound-dai = <&nau8810>;
+   };
+  };
+ };
+};
+&usbphy {
+ md-gpios = <&gpio 4 0x0>;
+ status = "ok";
+};
+&pinctrl {
+ hdmi_cec_pins: hdmi_cec@0 {
+  reg = <0>;
+  amb,pinmux-ids = <0x1070>;
+  amb,pinconf-ids = <0x000070>;
+ };
+};

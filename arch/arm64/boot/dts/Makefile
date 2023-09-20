@@ -3,6 +3,7 @@ subdir-y += actions
 subdir-y += al
 subdir-y += allwinner
 subdir-y += altera
+subdir-y += ambarella
 subdir-y += amd
 subdir-y += amlogic
 subdir-y += apm

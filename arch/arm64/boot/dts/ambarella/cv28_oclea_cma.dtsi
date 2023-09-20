@@ -1,0 +1,34 @@
+/ {
+ reserved-memory {
+  #address-cells = <1>;
+  #size-cells = <1>;
+  ranges;
+  linux,cma {
+   compatible = "shared-dma-pool";
+   reusable;
+   size = <0x03000000>;
+   linux,cma-default;
+  };
+  iav_reserved: iav@0x10000000 {
+   compatible = "shared-dma-pool";
+   reusable;
+   reg = <0x10000000 0x20000000>;
+  };
+  cavalry_reserved: cavalry@0x28000000 {
+   compatible = "shared-dma-pool";
+   no-map;
+   reg = <0x30000000 (0x10000000 - 0x400000)>;
+  };
+ };
+ iav {
+  ambcma {
+   compatible = "ambarella,cma";
+   memory-region = <&iav_reserved>;
+  };
+ };
+ sub_scheduler: sub_scheduler0 {
+  compatible = "ambarella,sub-scheduler";
+  interrupts = <0 153 0x4>, <0 154 0x4>, <0 155 0x4>, <0 156 0x4>, <0 157 0x4>;
+  memory-region = <&cavalry_reserved>;
+ };
+};

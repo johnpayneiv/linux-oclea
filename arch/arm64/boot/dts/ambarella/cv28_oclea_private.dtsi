@@ -1,0 +1,14 @@
+/ {
+ iav {
+  hwtimer {
+   compatible = "ambarella,hwtimer";
+   interrupts = <0 25 0x1>;
+   interrupt-names = "hwtimer";
+  };
+ };
+ clocks {
+  pll_out_hdmi: pll_out_hdmi {
+   status = "disabled";
+  };
+ };
+};
