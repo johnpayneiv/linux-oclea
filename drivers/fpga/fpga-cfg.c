@@ -218,7 +218,7 @@ static void fpga_cfg_modprobe_cleanup(struct subprocess_info *info)
 /* 6 = 5 (for modprobe command and its args) + 1 (for NULL termination)  */
 #define MAX_ARGV	(6 + MAX_MOD_ARGS)
 
-char modprobe_path[] = "/sbin/modprobe";
+static char modprobe[] = "/sbin/modprobe";
 
 static int fpga_cfg_modprobe(char *module_name, int wait,
 			     bool remove, char *module_args)
@@ -247,7 +247,7 @@ static int fpga_cfg_modprobe(char *module_name, int wait,
 
 	data->remove = remove;
 
-	argv[0] = modprobe_path;
+	argv[0] = modprobe;
 	argv[1] = "-q";
 
 	if (remove) {
@@ -266,7 +266,7 @@ static int fpga_cfg_modprobe(char *module_name, int wait,
 		 */
 	}
 
-	info = call_usermodehelper_setup(modprobe_path, argv, envp,
+	info = call_usermodehelper_setup(modprobe, argv, envp,
 					 GFP_KERNEL, NULL,
 					 fpga_cfg_modprobe_cleanup, data);
 	if (!info) {
