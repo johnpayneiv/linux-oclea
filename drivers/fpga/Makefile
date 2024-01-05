@@ -45,3 +45,5 @@ dfl-afu-objs += dfl-afu-error.o
 
 # Drivers for FPGAs which implement DFL
 obj-$(CONFIG_FPGA_DFL_PCI)		+= dfl-pci.o
+
+obj-$(CONFIG_FPGA_CFG_DEV)		+= fpga-cfg.o
