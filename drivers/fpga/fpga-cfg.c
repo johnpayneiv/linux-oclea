@@ -1016,11 +1016,13 @@ static void __maybe_unused pci_bus_rescan(struct fpga_cfg_fpga_inst *inst,
 					  struct pci_bus *bus, char *driver)
 {
 	struct pci_dev *pdev;
+#ifdef CONFIG_PCI
 	unsigned int max;
 
 	pci_lock_rescan_remove();
 	max = pci_scan_child_bus(bus);
 	pci_assign_unassigned_bus_resources(bus);
+#endif
 
 	list_for_each_entry(pdev, &bus->devices, bus_list) {
 		/* Skip already-added devices */
@@ -1040,12 +1042,17 @@ static void __maybe_unused pci_bus_rescan(struct fpga_cfg_fpga_inst *inst,
 
 			pdev->driver_override = kstrdup(driver, GFP_KERNEL);
 		}
+#ifdef CONFIG_PCI
 		pci_bus_add_device(pdev);
+#endif
 	}
+#ifdef CONFIG_PCI
 	pci_unlock_rescan_remove();
+#endif
 	pdev = NULL;
 }
 
+#ifdef CONFIG_PCI
 static void pci_device_pass_platform_data(struct pci_dev *pdev,
 					  struct fpga_cfg_fpga_inst *inst)
 {
@@ -1069,6 +1076,7 @@ static void pci_device_pass_platform_data(struct pci_dev *pdev,
 		pdev->dev.platform_data = para;
 	}
 }
+#endif
 
 static int pci_device_driver_bind(struct pci_dev *pdev,
 				  struct fpga_cfg_fpga_inst *inst,
@@ -1116,6 +1124,7 @@ static void pci_device_driver_unbind(struct device *dev)
 	/*put_device(dev);*/
 }
 
+#ifdef CONFIG_PCI
 static int pci_bus_event_notify(struct notifier_block *nb,
 				unsigned long action, void *data)
 {
@@ -1189,6 +1198,7 @@ static int pci_bus_event_notify(struct notifier_block *nb,
 static struct notifier_block pci_bus_notifier = {
 	.notifier_call = pci_bus_event_notify,
 };
+#endif
 
 static inline bool inst_is_fpp(struct fpga_cfg_fpga_inst *inst)
 {
@@ -2044,7 +2054,9 @@ static int fpga_cfg_dev_probe(struct platform_device *pdev)
 	if (ret)
 		goto err;
 
+#ifdef CONFIG_PCI
 	bus_register_notifier(&pci_bus_type, &pci_bus_notifier);
+#endif
 
 	fpga_mgr_register_mgr_notifier(&fpga_mgr_notifier);
 	return 0;
@@ -2056,7 +2068,9 @@ err:
 
 static int fpga_cfg_dev_remove(struct platform_device *pdev)
 {
+#ifdef CONFIG_PCI
 	bus_unregister_notifier(&pci_bus_type, &pci_bus_notifier);
+#endif
 
 	fpga_mgr_unregister_mgr_notifier(&fpga_mgr_notifier);
 	fpga_cfg_detach_mgrs(fpga_mgr_class);
