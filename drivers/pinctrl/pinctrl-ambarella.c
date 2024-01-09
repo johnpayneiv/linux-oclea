@@ -240,7 +240,14 @@ static int amb_pinmux_request(struct pinctrl_dev *pctldev, unsigned pin)
 	soc = pinctrl_dev_get_drvdata(pctldev);
 
 	if (test_and_set_bit(pin, soc->used))
+	{
+		dev_err(soc->dev, "%s: pin %u is already used\n", __func__, pin);
 		rval = -EBUSY;
+		dump_stack();
+	} else if (pin == 85) {
+		dev_info(soc->dev, "%s: allocating pin %u\n", __func__, pin);
+		dump_stack();
+	}
 
 	return rval;
 }
@@ -340,8 +347,14 @@ static int amb_pinmux_gpio_request_enable(struct pinctrl_dev *pctldev,
 		return -EINVAL;
 	}
 
-	if (test_and_set_bit(pin, soc->used))
-		return -EBUSY;
+	if (test_and_set_bit(pin, soc->used)) {
+		dev_err(soc->dev, "%s: pin %u is already used\n", __func__, pin);
+		dump_stack();
+//		return -EBUSY;
+	} else if (pin == 85) {
+		dev_info(soc->dev, "%s: allocating pin %u\n", __func__, pin);
+		dump_stack();
+	}
 
 	bank = PINID_TO_BANK(pin);
 	offset = PINID_TO_OFFSET(pin);
@@ -837,6 +850,8 @@ static int amb_pinctrl_probe(struct platform_device *pdev)
 			return PTR_ERR(soc->ds_regmap);
 		}
 	}
+
+	dev_info(&pdev->dev, "%s: mark pins %u..%u as used\n", __func__, soc->bank_num*32, GPIO_MAX_BANK_NUM * 32);
 
 	/* not allowed to use for  non-existed pins */
 	for (i = soc->bank_num * 32; i < GPIO_MAX_BANK_NUM * 32; i++)
