@@ -1404,7 +1404,7 @@ static void __spi_pump_messages(struct spi_controller *ctlr, bool in_kthread)
 	ret = spi_map_msg(ctlr, msg);
 	if (ret) {
 		msg->status = ret;
-		dev_err(&ctrl->dev, "spi_map_msg returned %d, finalizing current message\n", ret);
+		dev_err(&ctlr->dev, "spi_map_msg returned %d, finalizing current message\n", ret);
 		spi_finalize_current_message(ctlr);
 		goto out;
 	}
