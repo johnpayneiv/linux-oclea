@@ -217,14 +217,14 @@ static void ambarella_spi_start_transfer(struct ambarella_spi *bus)
 	}
 
 	// RR Dump
-	dev_err(&bus->dev, "RR SPI Dump (ambarella_spi_start_transfer)\n");
+	dev_err(bus->dev, "RR SPI Dump (ambarella_spi_start_transfer)\n");
 	for(i = 0; i < len; i++) {
 		if (bus->msg->spi->bits_per_word <= 8) {
 			tmp_u8 = ((u8 *)wbuf)[widx+i];
-			dev_err(&bus->dev, "0x%x\n", tmp_u8);
+			dev_err(bus->dev, "0x%x\n", tmp_u8);
 		} else {
 			tmp = ((u16 *)wbuf)[widx+i];
-			dev_err(&bus->dev, "0x%x\n", tmp);
+			dev_err(bus->dev, "0x%x\n", tmp);
 		}
 	}
 
@@ -232,7 +232,7 @@ static void ambarella_spi_start_transfer(struct ambarella_spi *bus)
 	case SPI_WRITE_ONLY:
 	case SPI_WRITE_READ:
 		if (!bus->dma_used) {
-			dev_err(&bus->dev, "writing transfer (not dma used)\n");
+			dev_err(bus->dev, "writing transfer (not dma used)\n");
 			xfer_len = min_t(int, len - widx, SPI_DATA_FIFO_SIZE_16);
 			for(i = 0; i < xfer_len; i++) {
 				if (bus->msg->spi->bits_per_word <= 8)
@@ -242,7 +242,7 @@ static void ambarella_spi_start_transfer(struct ambarella_spi *bus)
 				writel_relaxed(tmp, bus->virt + SPI_DR_OFFSET);
 			}
 		} else {
-			dev_err(&bus->dev, "writing transfer (dma used)\n");
+			dev_err(bus->dev, "writing transfer (dma used)\n");
 			memcpy(bus->tx_dma_buf, xfer->tx_buf, len);
 		}
 		break;
