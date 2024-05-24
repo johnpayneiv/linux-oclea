@@ -1404,6 +1404,7 @@ static void __spi_pump_messages(struct spi_controller *ctlr, bool in_kthread)
 	ret = spi_map_msg(ctlr, msg);
 	if (ret) {
 		msg->status = ret;
+		dev_err(&ctrl->dev, "spi_map_msg returned %d, finalizing current message\n", ret);
 		spi_finalize_current_message(ctlr);
 		goto out;
 	}
@@ -1527,6 +1528,8 @@ void spi_finalize_current_message(struct spi_controller *ctlr)
 	spin_lock_irqsave(&ctlr->queue_lock, flags);
 	mesg = ctlr->cur_msg;
 	spin_unlock_irqrestore(&ctlr->queue_lock, flags);
+
+	dev_err(&ctlr->dev, "spi_finalize_current_message\n");
 
 	spi_unmap_msg(ctlr, mesg);
 
@@ -3525,6 +3528,7 @@ static int __spi_sync(struct spi_device *spi, struct spi_message *message)
 
 		spin_unlock_irqrestore(&ctlr->bus_lock_spinlock, flags);
 	} else {
+		// TODO: can we get into this case?
 		status = spi_async_locked(spi, message);
 	}
 
