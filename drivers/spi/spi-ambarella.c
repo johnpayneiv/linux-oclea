@@ -217,15 +217,26 @@ static void ambarella_spi_start_transfer(struct ambarella_spi *bus)
 	}
 
 	// RR Dump
-	dev_err(bus->dev, "RR SPI Dump (ambarella_spi_start_transfer)\n");
-	for(i = 0; i < len; i++) {
-		if (bus->msg->spi->bits_per_word <= 8) {
-			tmp_u8 = ((u8 *)wbuf)[widx+i];
-			dev_err(bus->dev, "0x%x\n", tmp_u8);
-		} else {
-			tmp = ((u16 *)wbuf)[widx+i];
-			dev_err(bus->dev, "0x%x\n", tmp);
-		}
+	dev_err(bus->dev, "RR SPI Dump (ambarella_spi_start_transfer) (len %d)\n", len);
+
+	// Dump all
+	// for(i = 0; i < len; i++) {
+	// 	if (bus->msg->spi->bits_per_word <= 8) {
+	// 		tmp_u8 = ((u8 *)wbuf)[widx+i];
+	// 		dev_err(bus->dev, "0x%x\n", tmp_u8);
+	// 	} else {
+	// 		tmp = ((u16 *)wbuf)[widx+i];
+	// 		dev_err(bus->dev, "0x%x\n", tmp);
+	// 	}
+	// }
+
+	// Dump first word
+	if (bus->msg->spi->bits_per_word <= 8) {
+		tmp_u8 = ((u8 *)wbuf)[widx];
+		dev_err(bus->dev, "0x%x\n", tmp_u8);
+	} else {
+		tmp = ((u16 *)wbuf)[widx];
+		dev_err(bus->dev, "0x%x\n", tmp);
 	}
 
 	switch (bus->rw) {
