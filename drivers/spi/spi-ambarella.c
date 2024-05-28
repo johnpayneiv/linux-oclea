@@ -242,10 +242,12 @@ static void ambarella_spi_start_transfer(struct ambarella_spi *bus)
 			if (xfer_len) {
 				if (bus->msg->spi->bits_per_word <= 8) {
 					tmp_u8 = ((u8 *)wbuf)[widx];
-					dev_err(bus->dev, "0x%2x\n", tmp_u8);
+					if (!strcmp(dev_name(bus->dev), "e0014000.spi"))
+						dev_err(bus->dev, "0x%02x\n", tmp_u8);
 				} else {
 					tmp = ((u16 *)wbuf)[widx];
-					dev_err(bus->dev, "0x%4x\n", tmp);
+					if (!strcmp(dev_name(bus->dev), "e0014000.spi"))
+						dev_err(bus->dev, "0x%04x\n", tmp);
 				}
 			}
 
@@ -262,11 +264,13 @@ static void ambarella_spi_start_transfer(struct ambarella_spi *bus)
 			if (len == 1) {
 				// Dump first byte
 				tmp_u8 = ((u8 *)wbuf)[widx];
-				dev_err(bus->dev, "0x%2x\n", tmp_u8);
+				if (!strcmp(dev_name(bus->dev), "e0014000.spi"))
+					dev_err(bus->dev, "0x%02x\n", tmp_u8);
 			} else if (len > 1 ) {
 				// Dump first 2 bytes
 				tmp = ((u16 *)wbuf)[widx];
-				dev_err(bus->dev, "0x%4x\n", tmp);
+				if (!strcmp(dev_name(bus->dev), "e0014000.spi"))
+					dev_err(bus->dev, "0x%04x\n", tmp);
 
 			}
 
