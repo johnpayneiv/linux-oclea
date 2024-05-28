@@ -218,7 +218,7 @@ static void ambarella_spi_start_transfer(struct ambarella_spi *bus)
 
 	// RR Dump
 	if (!strcmp(dev_name(bus->dev), "e0014000.spi"))
-		dev_err(bus->dev, "RR SPI Dump v2 (ambarella_spi_start_transfer) (len %d)\n", len);
+		dev_err(bus->dev, "RR SPI Dump v3 (ambarella_spi_start_transfer) (len %d)\n", len);
 
 	// Dump all
 	// for(i = 0; i < len; i++) {
