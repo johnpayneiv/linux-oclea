@@ -1529,7 +1529,7 @@ void spi_finalize_current_message(struct spi_controller *ctlr)
 	mesg = ctlr->cur_msg;
 	spin_unlock_irqrestore(&ctlr->queue_lock, flags);
 
-	dev_err(&ctlr->dev, "spi_finalize_current_message\n");
+	// dev_err(&ctlr->dev, "spi_finalize_current_message\n");
 
 	spi_unmap_msg(ctlr, mesg);
 
