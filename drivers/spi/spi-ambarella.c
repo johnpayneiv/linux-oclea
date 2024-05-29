@@ -217,8 +217,8 @@ static void ambarella_spi_start_transfer(struct ambarella_spi *bus)
 	}
 
 	// RR Dump
-	if (!strcmp(dev_name(bus->dev), "e0014000.spi"))
-		dev_err(bus->dev, "RR SPI Dump v3 (ambarella_spi_start_transfer) (len %d)\n", len);
+	// if (!strcmp(dev_name(bus->dev), "e0014000.spi"))
+	// 	dev_err(bus->dev, "RR SPI Dump v3 (ambarella_spi_start_transfer) (len %d)\n", len);
 
 	// Dump all
 	// for(i = 0; i < len; i++) {
@@ -236,20 +236,22 @@ static void ambarella_spi_start_transfer(struct ambarella_spi *bus)
 	case SPI_WRITE_READ:
 
 		if (!bus->dma_used) {
-			if (!strcmp(dev_name(bus->dev), "e0014000.spi"))
-				dev_err(bus->dev, "writing transfer (not dma used)\n");
+			// if (!strcmp(dev_name(bus->dev), "e0014000.spi"))
+			// 	dev_err(bus->dev, "writing transfer (not dma used)\n");
 			xfer_len = min_t(int, len - widx, SPI_DATA_FIFO_SIZE_16);
 
 			// Dump first word
-			if (xfer_len) {
+			if (xfer_len && (!strcmp(dev_name(bus->dev), "e0014000.spi"))) {
 				if (bus->msg->spi->bits_per_word <= 8) {
 					tmp_u8 = ((u8 *)wbuf)[widx];
-					if (!strcmp(dev_name(bus->dev), "e0014000.spi"))
+					if (tmp_u8 != 0x47) {
 						dev_err(bus->dev, "0x%02x\n", tmp_u8);
+					}
 				} else {
 					tmp = ((u16 *)wbuf)[widx];
-					if (!strcmp(dev_name(bus->dev), "e0014000.spi"))
+					if ((tmp & 0x00FF ) != 0x47) {
 						dev_err(bus->dev, "0x%04x\n", tmp);
+					}
 				}
 			}
 
@@ -261,20 +263,24 @@ static void ambarella_spi_start_transfer(struct ambarella_spi *bus)
 				writel_relaxed(tmp, bus->virt + SPI_DR_OFFSET);
 			}
 		} else {
-			if (!strcmp(dev_name(bus->dev), "e0014000.spi"))
-				dev_err(bus->dev, "writing transfer (dma used)\n");
+			// if (!strcmp(dev_name(bus->dev), "e0014000.spi"))
+			// 	dev_err(bus->dev, "writing transfer (dma used)\n");
 
-			if (len == 1) {
-				// Dump first byte
-				tmp_u8 = ((u8 *)wbuf)[widx];
-				if (!strcmp(dev_name(bus->dev), "e0014000.spi"))
-					dev_err(bus->dev, "0x%02x\n", tmp_u8);
-			} else if (len > 1 ) {
-				// Dump first 2 bytes
-				tmp = ((u16 *)wbuf)[widx];
-				if (!strcmp(dev_name(bus->dev), "e0014000.spi"))
-					dev_err(bus->dev, "0x%04x\n", tmp);
+			if (!strcmp(dev_name(bus->dev), "e0014000.spi")) {
+				if (len == 1) {
+					// Dump first byte
+					tmp_u8 = ((u8 *)wbuf)[widx];
+					if (tmp_u8 != 0x47) {
+						dev_err(bus->dev, "0x%02x\n", tmp_u8);
+					}
+				} else if (len > 1 ) {
+					// Dump first 2 bytes
+					tmp = ((u16 *)wbuf)[widx];
+					if ((tmp & 0x00FF ) != 0x47) {
+						dev_err(bus->dev, "0x%04x\n", tmp);
+					}
 
+				}
 			}
 
 			memcpy(bus->tx_dma_buf, xfer->tx_buf, len);
