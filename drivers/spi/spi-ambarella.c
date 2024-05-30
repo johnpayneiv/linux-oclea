@@ -746,7 +746,8 @@ static int ambarella_spi_probe(struct platform_device *pdev)
 	if (err)
 		goto exit_rx_dma_free;
 
-	dev_info(&pdev->dev, "Ambarella spi controller %d created.\r\n", master->bus_num);
+	// dev_info(&pdev->dev, "Ambarella spi controller %d created.\r\n", master->bus_num);
+	dev_err(&pdev->dev, "Ambarella spi controller %d created (RR Changes v1).\r\n", master->bus_num);
 
 	return err;
 
