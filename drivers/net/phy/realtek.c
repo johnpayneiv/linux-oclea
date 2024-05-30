@@ -35,6 +35,30 @@
 #define RTL8211F_TX_DELAY			BIT(8)
 #define RTL8211F_RX_DELAY			BIT(3)
 
+// Teknique changes
+// Add register for LEDs on 8211F
+#define RTL8211F_LED_PAGE			0xd04
+#define RTL8211F_LED_REG			0x10
+
+#define RTL8211F_LED_MODE			BIT(15)
+
+#define RTL8211F_LED_0_10M			BIT(0)
+#define RTL8211F_LED_0_100M			BIT(1)
+#define RTL8211F_LED_0_1G			BIT(3)
+#define RTL8211F_LED_0_ACT			BIT(4)
+
+#define RTL8211F_LED_1_10M			BIT(5)
+#define RTL8211F_LED_1_100M			BIT(6)
+#define RTL8211F_LED_1_1G			BIT(8)
+#define RTL8211F_LED_1_ACT			BIT(9)
+
+#define RTL8211F_LED_2_10M			BIT(10)
+#define RTL8211F_LED_2_100M			BIT(11)
+#define RTL8211F_LED_2_1G			BIT(13)
+#define RTL8211F_LED_2_ACT			BIT(14)
+
+// END TEKNIQUE CHANGES
+
 #define RTL8211E_TX_DELAY			BIT(1)
 #define RTL8211E_RX_DELAY			BIT(2)
 #define RTL8211E_MODE_MII_GMII			BIT(3)
@@ -64,6 +88,7 @@ MODULE_LICENSE("GPL");
 
 struct rtl821x_priv {
 	u16 phycr2;
+	s32 led_id;
 };
 
 static int rtl821x_read_page(struct phy_device *phydev)
@@ -80,6 +105,7 @@ static int rtl821x_probe(struct phy_device *phydev)
 {
 	struct device *dev = &phydev->mdio.dev;
 	struct rtl821x_priv *priv;
+	s32 led_id = 0;
 
 	priv = devm_kzalloc(dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
@@ -93,6 +119,16 @@ static int rtl821x_probe(struct phy_device *phydev)
 	if (of_property_read_bool(dev->of_node, "realtek,clkout-disable"))
 		priv->phycr2 &= ~RTL8211F_CLKOUT_EN;
 
+	// Teknique changes
+	// Which pin is the active LED id
+	if (0 == of_property_read_s32(dev->of_node, "teknique,rtl8211f-active-led-id-mask", &led_id)) {
+		priv->led_id = led_id;
+		dev_info(dev, "Got active LED mask: %d from dts", led_id);
+	} else {
+		dev_err(dev, "Failed to get active LED mask from dts");
+		priv->led_id = -1;
+	}
+	// END TEKNIQUE CHANGES
 	/*
 	 * XXX: Committed by Ambarella Semiconductor
 	 */
@@ -181,6 +217,36 @@ static int rtl8211f_config_intr(struct phy_device *phydev)
 		val = 0;
 
 	return phy_write_paged(phydev, 0xa42, RTL821x_INER, val);
+}
+
+/** Teknique changes
+ * @brief sets the active LEDs on the rtl8211f
+ * @param led input led mask
+ */
+static int rtl8211f_set_act_led(struct phy_device *phydev, int led, struct device *dev )
+{
+	u16 val = 0;
+	dev_info(dev, "Setting active LED: %d", led);
+	// val = phy_read_paged(phydev, RTL8211F_LED_PAGE, RTL8211F_LED_REG);
+	// Put the 
+	val |= RTL8211F_LED_MODE;
+	// Unset the active pins
+	val &= ~(RTL8211F_LED_0_ACT | RTL8211F_LED_1_ACT | RTL8211F_LED_2_ACT);
+	// Check the en-mask
+	if (0b1 & led) {
+		val &= ~(RTL8211F_LED_0_10M | RTL8211F_LED_0_100M | RTL8211F_LED_0_1G);
+		val |= RTL8211F_LED_0_ACT;
+	} 
+	if (0b10 & led) {
+		val &= ~(RTL8211F_LED_1_10M | RTL8211F_LED_1_100M | RTL8211F_LED_1_1G);
+		val |= RTL8211F_LED_1_ACT;
+	} 
+	if (0b100 & led) {
+		val &= ~(RTL8211F_LED_2_10M | RTL8211F_LED_2_100M | RTL8211F_LED_2_1G);
+		val |= RTL8211F_LED_2_ACT;
+	}
+	dev_info(dev, "Writeval: %d", val);
+	return phy_write_paged(phydev, RTL8211F_LED_PAGE, RTL8211F_LED_REG, val);
 }
 
 static int rtl8211_config_aneg(struct phy_device *phydev)
@@ -282,7 +348,16 @@ static int rtl8211f_config_init(struct phy_device *phydev)
 		return ret;
 	}
 
-	return genphy_soft_reset(phydev);
+	// Teknique changes,
+	// LED must be set after reset
+	ret = genphy_soft_reset(phydev);
+
+	if (priv->led_id > -1) {
+		dev_info(dev, "LED mode set, res: %d",
+		rtl8211f_set_act_led(phydev, priv->led_id, dev));
+	}
+
+	return ret;
 }
 
 static int rtl8211e_config_init(struct phy_device *phydev)
