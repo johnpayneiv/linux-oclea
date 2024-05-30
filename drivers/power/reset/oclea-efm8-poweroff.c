@@ -11,18 +11,34 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/i2c.h>
+#include <linux/notifier.h>
+#include <linux/reboot.h>
 
 #define OCLEA_PMIC_REG_SHUTDOWN		0x30
 #define OCLEA_PMIC_REG_WAKE_TIME	0x32
 #define OCLEA_PMIC_REG_WAKE_REASON	0x34
 
 #define OCLEA_PMIC_SHUTDOWN_VALUE	0xDEAD
+#define OCLEA_PMIC_REBOOT_VALUE	    0xFEED
 
 struct efm8_poweroff_data {
     struct i2c_client          *client;
 };
 
 static struct efm8_poweroff_data *pm_ctx;
+
+static int reboot_handler(struct notifier_block *nb, unsigned long action, void *data)
+{
+    if (action == SYS_RESTART){
+        i2c_smbus_write_word_data(pm_ctx->client, OCLEA_PMIC_REG_SHUTDOWN, OCLEA_PMIC_REBOOT_VALUE);
+    }
+
+    return NOTIFY_OK;
+}
+
+static struct notifier_block reboot_notifier = {
+    .notifier_call = reboot_handler,
+};
 
 void efm8_poweroff_power_off(void)
 {
@@ -57,6 +73,7 @@ static int efm8_poweroff_probe(struct i2c_client *client,
     dev_set_drvdata(dev, dev_data);
     pm_ctx = dev_data;
     pm_power_off = efm8_poweroff_power_off;
+    register_reboot_notifier(&reboot_notifier);
 
     dev_info(dev, "%s: pm '%s'\n", dev_name(dev), client->name);
 
@@ -69,6 +86,7 @@ static int efm8_poweroff_remove(struct i2c_client *client)
         pm_power_off = NULL;
     }
 
+    unregister_reboot_notifier(&reboot_notifier);
     pm_ctx = NULL;
 
     return 0;
