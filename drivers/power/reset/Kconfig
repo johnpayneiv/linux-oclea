@@ -230,6 +230,13 @@ config POWER_RESET_AMBARELLA
 	help
 	  Reboot support for ambarella aarch64 SoCs.
 
+config POWER_RESET_OCLEA_EFM8_POWEROFF
+	bool "Oclea efm8 power off driver"
+	depends on ARCH_AMBARELLA
+	default n
+	help
+	  Power off support for Oclea SoMs with EFM8 power controllers.
+
 config REBOOT_MODE
 	tristate
 

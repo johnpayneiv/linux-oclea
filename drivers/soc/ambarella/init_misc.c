@@ -113,8 +113,11 @@ void ambarella_power_off_prepare(void)
 
 static int __init ambarella_init_pm(void)
 {
-	pm_power_off = ambarella_power_off;
-	pm_power_off_prepare = ambarella_power_off_prepare;
+	struct device_node *np = of_find_node_by_name(NULL, "pmic_mp5424");
+	if (np) {
+		pm_power_off = ambarella_power_off;
+		pm_power_off_prepare = ambarella_power_off_prepare;
+	}
 
 	return 0;
 }
