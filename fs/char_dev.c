@@ -62,6 +62,9 @@ void chrdev_show(struct seq_file *f, off_t offset)
 
 #endif /* CONFIG_PROC_FS */
 
+/*
+ * Teknique change?
+ */
 #define AMBA_IAV_DEV_NUMBER 248
 
 static int find_dynamic_major(void)

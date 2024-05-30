@@ -45,6 +45,8 @@
 #include <linux/dmaengine.h>
 #include <linux/dma-mapping.h>
 #include <linux/dmapool.h>
+#include <linux/cpufreq.h>
+#include <linux/clk-provider.h>
 #include <plat/uart.h>
 #include <plat/dma.h>
 
@@ -84,6 +86,9 @@ struct ambarella_uart_port {
 	bool ignore_fe;
 #ifdef CONFIG_PM
 	u32 clk_rate;
+#endif
+#ifdef CONFIG_CPU_FREQ
+	struct notifier_block cpufreq_nb;
 #endif
 };
 
@@ -1035,6 +1040,66 @@ static void serial_ambarella_set_termios(struct uart_port *port,
 	enable_irq(port->irq);
 }
 
+#ifdef CONFIG_CPU_FREQ
+static int serial_ambarella_cpufreq_callback(struct notifier_block *nb,
+		unsigned long val, void *data)
+{
+	struct ambarella_uart_port *amb_port;
+	bool clk_changed = false;
+
+	amb_port = container_of(nb, struct ambarella_uart_port, cpufreq_nb);
+
+	if (val == CPUFREQ_PRECHANGE) {
+		/* do nothing */
+	} else if (val == CPUFREQ_POSTCHANGE) {
+		dev_info(amb_port->port.dev, "%s: CPUFREQ_POSTCHANGE \n", __func__);
+
+		if (amb_port->uart_pll) {
+			const char *clk_name = __clk_get_name(amb_port->uart_pll);
+			const char *parent_clk_name;
+
+			if (amb_port->parent_pll)
+				parent_clk_name = __clk_get_name(amb_port->parent_pll);
+
+			if (!strcmp(clk_name, "gclk_core")
+					|| !strcmp(clk_name,"gclk_ahb")
+					|| !strcmp(clk_name,"gclk_apb")) {
+				clk_changed = true;
+
+			} else if (amb_port->parent_pll && (!strcmp(parent_clk_name, "gclk_core")
+						|| !strcmp(parent_clk_name,"gclk_ahb")
+						|| !strcmp(parent_clk_name,"gclk_apb"))) {
+				clk_changed = true;
+			}
+
+		}
+
+		if (clk_changed) {
+			struct ktermios *termios;
+			struct tty_struct *tty;
+
+			clk_set_rate(amb_port->uart_pll, 0); /* set it to 0 first before reset because clock is cached */
+			clk_set_rate(amb_port->uart_pll, amb_port->port.uartclk);
+
+			tty = amb_port->port.state->port.tty;
+			if (tty == NULL)
+				goto exit;
+
+			termios = &tty->termios;
+			if (termios == NULL) {
+				dev_warn(amb_port->port.dev, "%s: no termios?\n", __func__);
+				goto exit;
+			}
+
+			serial_ambarella_set_termios(&amb_port->port, termios, NULL);
+		}
+	}
+
+exit:
+	return 0;
+}
+#endif
+
 static void serial_ambarella_pm(struct uart_port *port,
 	unsigned int state, unsigned int oldstate)
 {
@@ -1424,6 +1489,15 @@ static int serial_ambarella_probe(struct platform_device *pdev)
 			dev_name(amb_port->port.dev), &amb_port->port);
 
 	platform_set_drvdata(pdev, amb_port);
+
+#ifdef CONFIG_CPU_FREQ
+	amb_port->cpufreq_nb.notifier_call = serial_ambarella_cpufreq_callback;
+	rval = cpufreq_register_notifier(&amb_port->cpufreq_nb, CPUFREQ_TRANSITION_NOTIFIER);
+	if (rval < 0) {
+		pr_err("%s: Failed to register cpufreq notifier %d\n", __func__, rval);
+		return rval;
+	}
+#endif
 
 	return rval;
 }

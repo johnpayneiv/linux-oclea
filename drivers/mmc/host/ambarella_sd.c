@@ -32,6 +32,7 @@
 #include <linux/clk.h>
 #include <linux/of_platform.h>
 #include <linux/of_gpio.h>
+#include <linux/sys_soc.h>
 #include <linux/regmap.h>
 #include <linux/mfd/syscon.h>
 #include <linux/mmc/slot-gpio.h>
@@ -50,17 +51,23 @@
 #include <linux/pm.h>
 #include <linux/pm_runtime.h>
 /* ==========================================================================*/
+
 struct ambarella_sd_dma_desc {
 	u16 attr;
 	u16 len;
 	u32 addr;
 } __attribute((packed));
 
+struct ambarella_mmc_soc_data {
+	u32			emmc_boot_slot;
+};
+
 struct ambarella_mmc_host {
 	unsigned char __iomem 		*regbase;
 	struct regmap			*reg_rct;
 	struct device			*dev;
 	unsigned int			irq;
+	struct ambarella_mmc_soc_data	*soc_data;
 
 	struct regmap_field		*phy_ctrl;
 	struct regmap_field		*phy_sel;
@@ -101,8 +108,11 @@ struct ambarella_mmc_host {
 	int				invert_rx_clk;
 	int				invert_dll_clk;
 	u32				phy_timing[4];
+	u32				sd_delay_mux[2];
 	u32				timing_reg_num;
 	u32				latctrl;
+	bool				emmc_boot_controller;
+	bool				set_hs_bit;
 	bool				auto_cmd12;
 	bool				force_v18;
 	bool				sdio_v3_lv_enable;
@@ -271,14 +281,37 @@ static void ambarella_sd_switch_clk(struct ambarella_mmc_host *host, bool enable
 	udelay(10);
 }
 
-static u32 ambarella_sd_set_dll(struct ambarella_mmc_host *host, u32 sbc);
+static u32 ambarella_sd_set_dll(struct ambarella_mmc_host *host, u32 sbc)
+{
+	u32 vfine;
+
+	regmap_field_write(host->phy_sbc, sbc);
+
+	regmap_field_update_bits(host->phy_ctrl, SD_PHY_RESET, SD_PHY_RESET);
+	/* wait time for DLL reset */
+	if (in_interrupt())
+		udelay(5);
+	else
+		usleep_range(5, 10);
+
+	regmap_field_update_bits(host->phy_ctrl, SD_PHY_RESET, 0);
+	/* wait time for DLL lock */
+	if (in_interrupt())
+		udelay(5);
+	else
+		usleep_range(5, 10);
+
+	regmap_field_read(host->phy_obsv, &vfine);
+
+	return vfine;
+}
+
 static void ambarella_sd_reset_all(struct ambarella_mmc_host *host)
 {
 	u32 nis, eis;
+	ktime_t timeout;
 
 	ambarella_sd_disable_irq(host, 0xffffffff);
-
-	writel_relaxed(0x0, host->regbase + SD_LAT_CTRL_OFFSET);
 
 	/* reset sd phy timing if exist */
 	if (host->reg_rct) {
@@ -288,35 +321,28 @@ static void ambarella_sd_reset_all(struct ambarella_mmc_host *host)
 	}
 
 	writeb_relaxed(SD_RESET_ALL, host->regbase + SD_RESET_OFFSET);
-	while (readb_relaxed(host->regbase + SD_RESET_OFFSET) & SD_RESET_ALL)
-		cpu_relax();
-
-        /* need 3 SD clock cycles to let bit0 of SD 0x74 go low */
-	udelay(1);
-
-	/* check sd controller boot status register if ready to boot */
-	while ((readb_relaxed(host->regbase + SD_BOOT_STA_OFFSET) & 0x1) == 0x0)
-		cpu_relax();
-
-	/* enable sd internal clock */
-	writew_relaxed(SD_CLK_ICLK_EN, host->regbase + SD_CLK_OFFSET);
-	while (!(readw_relaxed(host->regbase + SD_CLK_OFFSET) & SD_CLK_ICLK_STABLE)) {
-		writew_relaxed(SD_CLK_ICLK_EN, host->regbase + SD_CLK_OFFSET);
+	timeout = ktime_add_ms(ktime_get(), 10);
+	while (readb_relaxed(host->regbase + SD_RESET_OFFSET) & SD_RESET_ALL) {
+		if(ktime_after(ktime_get(), timeout)) {
+			dev_info(host->dev, "reset all timeout\n");
+			break;
+		}
 		cpu_relax();
 	}
 
-	nis = SD_NISEN_REMOVAL | SD_NISEN_INSERT |
-		SD_NISEN_DMA | 	SD_NISEN_BLOCK_GAP |
-		SD_NISEN_XFR_DONE | SD_NISEN_CMD_DONE |
-		SD_NISEN_CARD;
-
-	eis = SD_EISEN_ADMA_ERR | SD_EISEN_ACMD12_ERR |
-		SD_EISEN_CURRENT_ERR | 	SD_EISEN_DATA_BIT_ERR |
-		SD_EISEN_DATA_CRC_ERR | SD_EISEN_DATA_TMOUT_ERR |
-		SD_EISEN_CMD_IDX_ERR | 	SD_EISEN_CMD_BIT_ERR |
-		SD_EISEN_CMD_CRC_ERR | 	SD_EISEN_CMD_TMOUT_ERR;
-
-	ambarella_sd_enable_irq(host, (eis << 16) | nis);
+	/* need 3 SD clock cycles to let bit0 of SD 0x74 go low */
+	udelay(1);
+	/* for emmc boot controller, check boot status register if ready to boot */
+	if(host->emmc_boot_controller) {
+		timeout = ktime_add_ms(ktime_get(), 200);
+		while ((readb_relaxed(host->regbase + SD_BOOT_STA_OFFSET) & 0x1) == 0x0) {
+			if(ktime_after(ktime_get(), timeout)) {
+				dev_info(host->dev, "wait boot rdy timeout\n");
+				break;
+			}
+			cpu_relax();
+		}
+	}
 
 	if(host->latctrl)
 		writel_relaxed(host->latctrl, host->regbase + SD_LAT_CTRL_OFFSET);
@@ -331,16 +357,36 @@ static void ambarella_sd_reset_all(struct ambarella_mmc_host *host)
 		writel_relaxed(host->phy_timing[1], host->regbase + SD_DELAY_SEL_L);
 		writel_relaxed(host->phy_timing[2], host->regbase + SD_DELAY_SEL_H);
 	}
+
+	if((host->mode == MMC_TIMING_MMC_HS200) ||
+	    (host->mode == MMC_TIMING_UHS_SDR104) ||
+	    (host->mode == MMC_TIMING_UHS_SDR50)) {
+		writel_relaxed(host->sd_delay_mux[0], host->regbase + SD_DELAY_SEL_L);
+		writel_relaxed(host->sd_delay_mux[1], host->regbase + SD_DELAY_SEL_H);
+	}
+
+	nis = SD_NISEN_REMOVAL | SD_NISEN_INSERT |
+		SD_NISEN_DMA |	SD_NISEN_BLOCK_GAP |
+		SD_NISEN_XFR_DONE | SD_NISEN_CMD_DONE |
+		SD_NISEN_CARD;
+
+	eis = SD_EISEN_ADMA_ERR | SD_EISEN_ACMD12_ERR |
+		SD_EISEN_CURRENT_ERR |	SD_EISEN_DATA_BIT_ERR |
+		SD_EISEN_DATA_CRC_ERR | SD_EISEN_DATA_TMOUT_ERR |
+		SD_EISEN_CMD_IDX_ERR |	SD_EISEN_CMD_BIT_ERR |
+		SD_EISEN_CMD_CRC_ERR |	SD_EISEN_CMD_TMOUT_ERR;
+
+	ambarella_sd_enable_irq(host, (eis << 16) | nis);
 }
 
 static void ambarella_sd_set_clk(struct mmc_host *mmc, u32 clock)
 {
 	struct ambarella_mmc_host *host = mmc_priv(mmc);
-	u32 sd_clk, divisor, clk_reg;
-
-	ambarella_sd_switch_clk(host, false);
+	u32 sd_clk, clk_reg;
+	ktime_t timeout;
 
 	host->clock = 0;
+	writew_relaxed(0, host->regbase + SD_CLK_OFFSET);
 
 	if (clock != 0) {
 		if (clock <= 400000 && host->fixed_init_clk > 0)
@@ -352,30 +398,31 @@ static void ambarella_sd_set_clk(struct mmc_host *mmc, u32 clock)
 		 * as the actual value.*/
 		clk_get_rate(host->clk);
 
-		sd_clk = min_t(u32, max_t(u32, clock, 24000000), mmc->f_max);
+		sd_clk = min_t(u32, clock, mmc->f_max);
 		clk_set_rate(host->clk, sd_clk);
 
 		sd_clk = clk_get_rate(host->clk);
-
-		for (divisor = 1; divisor <= 256; divisor <<= 1) {
-			if (sd_clk / divisor <= clock)
-				break;
-		}
-
-		sd_clk /= divisor;
 
 		host->clock = sd_clk;
 		host->ns_in_one_cycle = DIV_ROUND_UP(1000000000, sd_clk);
 		mmc->max_busy_timeout = (1 << 27) / (sd_clk / 1000);
 
-		/* convert divisor to register setting: (divisor >> 1) << 8 */
-		clk_reg = ((divisor << 7) & 0xff00) | SD_CLK_ICLK_EN;
-		writew_relaxed(clk_reg, host->regbase + SD_CLK_OFFSET);
+		/* after changing clk, some delay is useful */
+		udelay(20);
+		timeout = ktime_add_ms(ktime_get(), 100);
+		writew_relaxed(SD_CLK_ICLK_EN, host->regbase + SD_CLK_OFFSET);
 		while (!(readw_relaxed(host->regbase + SD_CLK_OFFSET) & SD_CLK_ICLK_STABLE)) {
-			writew_relaxed(clk_reg, host->regbase + SD_CLK_OFFSET);
+			if(ktime_after(ktime_get(), timeout)) {
+				dev_info(host->dev, "%s wait clk stable timeout\n", __func__);
+				break;
+			}
 			cpu_relax();
 		}
-		ambarella_sd_switch_clk(host, true);
+		udelay(10);
+		clk_reg = readw_relaxed(host->regbase + SD_CLK_OFFSET);
+		writew_relaxed(clk_reg | SD_CLK_EN, host->regbase + SD_CLK_OFFSET);
+
+		udelay(100);
 	}
 }
 
@@ -438,6 +485,13 @@ static void ambarella_sd_set_bus(struct ambarella_mmc_host *host, u8 bus_width, 
 		break;
 	}
 
+	if(host->set_hs_bit)
+		hostr |= SD_HOST_HIGH_SPEED;
+	else
+		hostr &= ~SD_HOST_HIGH_SPEED;
+
+	writeb_relaxed(hostr, host->regbase + SD_HOST_OFFSET);
+
 	tmp = readl_relaxed(host->regbase + SD_XC_CTR_OFFSET);
 	tmp &= ~SD_XC_CTR_DDR_EN;
 	writel_relaxed(tmp, host->regbase + SD_XC_CTR_OFFSET);
@@ -446,42 +500,21 @@ static void ambarella_sd_set_bus(struct ambarella_mmc_host *host, u8 bus_width, 
 	tmp &= ~0x0004;
 	writew_relaxed(tmp, host->regbase + SD_HOST2_OFFSET);
 
-	hostr &= ~SD_HOST_HIGH_SPEED;
-	writeb_relaxed(hostr, host->regbase + SD_HOST_OFFSET);
-
 	host->bus_width = bus_width;
 	host->mode = mode;
-}
 
-static u32 ambarella_sd_set_dll(struct ambarella_mmc_host *host, u32 sbc)
-{
-	u32 vfine;
-
-	regmap_field_write(host->phy_sbc, sbc);
-
-	regmap_field_update_bits(host->phy_ctrl, SD_PHY_RESET, SD_PHY_RESET);
-	/* wait time for DLL reset */
-	if (in_interrupt())
-		udelay(5);
-	else
-		usleep_range(5, 10);
-
-	regmap_field_update_bits(host->phy_ctrl, SD_PHY_RESET, 0);
-	/* wait time for DLL lock */
-	if (in_interrupt())
-		udelay(5);
-	else
-		usleep_range(5, 10);
-
-	regmap_field_read(host->phy_obsv, &vfine);
-
-	return vfine;
+	if((host->mode == MMC_TIMING_MMC_HS200) ||
+	    (host->mode == MMC_TIMING_UHS_SDR104) ||
+	    (host->mode == MMC_TIMING_UHS_SDR50)) {
+		writel_relaxed(host->sd_delay_mux[0], host->regbase + SD_DELAY_SEL_L);
+		writel_relaxed(host->sd_delay_mux[1], host->regbase + SD_DELAY_SEL_H);
+	}
 }
 
 static void ambarella_sd_recovery(struct ambarella_mmc_host *host)
 {
-	u32 latency, ctrl_reg = 0, sel_reg = 0, sbc_reg = 0, pwr_reg;
-	u32 divisor = 0;
+	u32 latency, ctrl_reg = 0, sel_reg = 0, sbc_reg = 0, pwr_reg, clk_reg;
+	ktime_t timeout;
 
 	latency = readl_relaxed(host->regbase + SD_LAT_CTRL_OFFSET);
 	if (host->reg_rct) {
@@ -490,23 +523,32 @@ static void ambarella_sd_recovery(struct ambarella_mmc_host *host)
 		regmap_field_read(host->phy_sbc, &sbc_reg);
 	}
 
-	divisor = readw_relaxed(host->regbase + SD_CLK_OFFSET) & 0xff00;
 	pwr_reg = readb_relaxed(host->regbase + SD_PWR_OFFSET);
 
 	ambarella_sd_reset_all(host);
 
-	/*restore the clock*/
+	/* restore power reg setting*/
 	writeb_relaxed(pwr_reg, host->regbase + SD_PWR_OFFSET);
-	ambarella_sd_switch_clk(host, false);
-	writew_relaxed((divisor | SD_CLK_ICLK_EN), host->regbase + SD_CLK_OFFSET);
+
+	/* restore the clock*/
+	writew_relaxed(SD_CLK_ICLK_EN, host->regbase + SD_CLK_OFFSET);
+	timeout = ktime_add_ms(ktime_get(), 10);
 	while (!(readw_relaxed(host->regbase + SD_CLK_OFFSET) & SD_CLK_ICLK_STABLE)) {
-		writew_relaxed((divisor | SD_CLK_ICLK_EN), host->regbase + SD_CLK_OFFSET);
+		if(ktime_after(ktime_get(), timeout)) {
+			dev_info(host->dev, "wait clk stable timeout\n");
+			break;
+		}
 		cpu_relax();
 	}
-	ambarella_sd_switch_clk(host, true);
+	udelay(10);
+	clk_reg = readw_relaxed(host->regbase + SD_CLK_OFFSET);
+	writew_relaxed(clk_reg | SD_CLK_EN, host->regbase + SD_CLK_OFFSET);
+	udelay(10);
 
+	/* host reg will be precess in this func */
 	ambarella_sd_set_bus(host, host->bus_width, host->mode);
 
+	/* restore the latency register */
 	writel_relaxed(latency, host->regbase + SD_LAT_CTRL_OFFSET);
 	if (host->reg_rct) {
 		regmap_field_write(host->phy_ctrl, ctrl_reg);
@@ -596,9 +638,6 @@ static int ambarella_sd_check_ready(struct ambarella_mmc_host *host)
 {
 	u32 sta_reg = 0, check = SD_STA_CMD_INHIBIT_CMD;
 	unsigned long timeout;
-
-	if (ambarella_sd_get_cd(host->mmc) == 0)
-		return -ENOMEDIUM;
 
 	if (host->cmd->data || (host->cmd->flags & MMC_RSP_BUSY))
 		check |= SD_STA_CMD_INHIBIT_DAT;
@@ -808,15 +847,25 @@ static void ambarella_sd_request(struct mmc_host *mmc, struct mmc_request *mrq)
 {
 	struct ambarella_mmc_host *host = mmc_priv(mmc);
 	unsigned long flags;
+	int present;
+
+	present = ambarella_sd_get_cd(host->mmc);
 
 	spin_lock_irqsave(&host->lock, flags);
 	WARN_ON(host->mrq);
 	host->mrq = mrq;
 
-	if (mrq->data)
-		ambarella_sd_setup_dma(host, mrq->data);
+	if(likely(present)) {
+		if (mrq->data)
+			ambarella_sd_setup_dma(host, mrq->data);
 
-	ambarella_sd_send_cmd(host, mrq->sbc ? mrq->sbc : mrq->cmd);
+		ambarella_sd_send_cmd(host, mrq->sbc ? mrq->sbc : mrq->cmd);
+	} else {
+		mrq->cmd->error = -ENOMEDIUM;
+		host->mrq = NULL;
+		host->cmd = NULL;
+		mmc_request_done(host->mmc, mrq);
+	}
 	spin_unlock_irqrestore(&host->lock, flags);
 }
 
@@ -894,9 +943,12 @@ static int ambarella_sd_execute_tuning(struct mmc_host *mmc, u32 opcode)
 
 	if (!host->reg_rct)
 		return 0;
+
+#if 0
 	tmp = readb_relaxed(host->regbase + SD_HOST_OFFSET);
 	tmp |= SD_HOST_HIGH_SPEED;
 	writeb_relaxed(tmp, host->regbase + SD_HOST_OFFSET);
+#endif
 
 	if(host->timing_reg_num != 0) {
 		/* the fixed timing will be set in ambarella_sd_recovery */
@@ -981,7 +1033,8 @@ retry_dll_clk:
 			e = dly;
 			range++;
 		} else {
-			if (range > 0) {
+			/* if range is 1 or 2, it seems nonsense */
+			if (range > 2) {
 				dev_dbg(host->dev, "tuning: lat[%ld], %s, %s, %s, count[%d](%d-%d)\n",
 					(misc & BIT(0)) + 1,
 					(misc & BIT(1)) ? "tx_clk_bypass" : "tx_clk_delays",
@@ -1000,7 +1053,7 @@ retry_dll_clk:
 		}
 	}
 
-	if (range > 0) {
+	if (range > 2) {
 		dev_dbg(host->dev, "tuning: lat[%ld], %s, %s, %s, count[%d](%d-%d)\n",
 			(misc & BIT(0)) + 1,
 			(misc & BIT(1)) ? "tx_clk_bypass" : "tx_clk_delays",
@@ -1087,6 +1140,9 @@ retry_dll_clk:
 
 	tmp = (sel << 24) | (sel << 16) | (sel << 8) | (sel << 0);
 	regmap_field_write(host->phy_sel, tmp);
+
+	/* after tuning do reset all is useful */
+	ambarella_sd_recovery(host);
 
 	return 0;
 }
@@ -1407,14 +1463,14 @@ static int ambarella_sd_of_parse(struct ambarella_mmc_host *host)
 	if (of_property_read_u32(np, "amb,latctrl", &host->latctrl) < 0)
 		host->latctrl = 0;
 
-	if (of_property_read_bool(np, "amb,have-led"))
-		host->have_led = true;
-	else
-		host->have_led = false;
+	if(of_property_read_u32_array(np, "amb,sd-delay-mux", host->sd_delay_mux, 2) < 0)
+		host->sd_delay_mux[0] = host->sd_delay_mux[1] = 0;
 
+	host->have_led = of_property_read_bool(np, "amb,have-led");
 	host->auto_cmd12 = of_property_read_bool(np, "amb,auto-cmd12");
 	host->force_v18 = of_property_read_bool(np, "amb,sd-force-1_8v");
 	host->sdio_v3_lv_enable = of_property_read_bool(np, "amb,sdio-v3-lv-enable");
+	host->set_hs_bit = of_property_read_bool(np, "amb,sd-hs-bit");
 
 	/* old style of sd device tree defines slot subnode, these codes are
 	 * just for compatibility. Note: we should remove this workaroud when
@@ -1474,6 +1530,20 @@ static int ambarella_sd_of_parse(struct ambarella_mmc_host *host)
 	return 0;
 }
 
+static const struct ambarella_mmc_soc_data ambarella_mmc_soc_data_v0 = {
+	.emmc_boot_slot	= 0,
+};
+
+static const struct ambarella_mmc_soc_data ambarella_mmc_soc_data_v1 = {
+	.emmc_boot_slot	= 2,
+};
+
+static const struct soc_device_attribute ambarella_mmc_socinfo[] = {
+	{ .soc_id = "cv5", .data = &ambarella_mmc_soc_data_v1 },
+	{ .family = "Ambarella SoC", .data = &ambarella_mmc_soc_data_v0 },
+	{/* sentinel */}
+};
+
 static int ambarella_sd_get_resource(struct platform_device *pdev,
 			struct ambarella_mmc_host *host)
 {
@@ -1481,8 +1551,9 @@ static int ambarella_sd_get_resource(struct platform_device *pdev,
 	struct device *dev = host->dev;
 	struct resource *mem;
 	struct reg_field field;
-	u32 regs[6];
-	int rval;
+	const struct soc_device_attribute *soc;
+	u32 regs[6], poc = ambarella_sys_config();
+	int id, rval;
 
 	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (mem == NULL) {
@@ -1555,6 +1626,19 @@ static int ambarella_sd_get_resource(struct platform_device *pdev,
 		dev_err(dev, "Can't alloc phy obsv reg field.\n");
 		return PTR_ERR(host->phy_obsv);
 	}
+
+	soc = soc_device_match(ambarella_mmc_socinfo);
+	if (!soc || !soc->data) {
+		dev_err(&pdev->dev, "Unknown SoC!\n");
+		return -ENODEV;
+	}
+
+	host->soc_data = (struct ambarella_mmc_soc_data *)soc->data;
+	id = of_alias_get_id(np, "sd");
+	if(((poc & BOOT_MODE_MASK) == BOOT_MODE_EMMC) && (id == host->soc_data->emmc_boot_slot))
+		host->emmc_boot_controller = true;
+	else
+		host->emmc_boot_controller = false;
 
 	return 0;
 }
@@ -1752,15 +1836,15 @@ static int ambarella_sd_resume(struct device *dev)
 		gpio_direction_output(host->pwr_gpio, host->pwr_gpio_active);
 
 	if(host->mmc->pm_caps & MMC_PM_KEEP_POWER) {
-	        writew_relaxed(host->sd_nisen, host->regbase + SD_NISEN_OFFSET);
-	        writew_relaxed(host->sd_eisen, host->regbase + SD_EISEN_OFFSET);
-	        writew_relaxed(host->sd_nixen, host->regbase + SD_NIXEN_OFFSET);
-	        writew_relaxed(host->sd_eixen, host->regbase + SD_EIXEN_OFFSET);
+		writew_relaxed(host->sd_nisen, host->regbase + SD_NISEN_OFFSET);
+		writew_relaxed(host->sd_eisen, host->regbase + SD_EISEN_OFFSET);
+		writew_relaxed(host->sd_nixen, host->regbase + SD_NIXEN_OFFSET);
+		writew_relaxed(host->sd_eixen, host->regbase + SD_EIXEN_OFFSET);
 		host->mmc->caps |= MMC_CAP_NONREMOVABLE;
-	        mdelay(10);
-	        ambarella_sd_set_clk(host->mmc, host->clock);
+		mdelay(10);
+		ambarella_sd_set_clk(host->mmc, host->clock);
 		ambarella_sd_set_bus(host, host->bus_width, host->mode);
-	        mdelay(10);
+		mdelay(10);
 		ambarella_sd_enable_irq(host, SD_NISEN_CARD);
 	} else {
 		clk_set_rate(host->clk, host->mmc->f_max);

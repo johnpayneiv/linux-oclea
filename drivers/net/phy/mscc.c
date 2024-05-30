@@ -1774,8 +1774,7 @@ static int vsc8531_config_init(struct phy_device *phydev)
 		}
 	}
 
-
-	rc = vsc85xx_mac_if_set(phydev, phydev->interface);
+	rc = vsc85xx_mac_if_set(phydev, PHY_INTERFACE_MODE_RGMII);
 	if (rc)
 		return rc;
 

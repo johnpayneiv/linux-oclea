@@ -1269,7 +1269,7 @@ static int ak4951_i2c_probe(struct i2c_client *i2c,
 	}
 
 	ak4951->i2c_clt = i2c;
-    ak4951->digital_mic = !!of_find_property(np, "amb,dmic", NULL);
+	ak4951->digital_mic = !!of_find_property(np, "amb,dmic", NULL);
 	ak4951_data = ak4951;
 
 	i2c_set_clientdata(i2c, ak4951);

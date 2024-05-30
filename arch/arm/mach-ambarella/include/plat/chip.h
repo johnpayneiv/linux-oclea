@@ -85,6 +85,7 @@
 
 extern struct proc_dir_entry *get_ambarella_proc_dir(void);
 extern struct dentry *get_ambarella_debugfs_dir(void);
+extern unsigned int ambarella_sys_config(void);
 
 #endif
 

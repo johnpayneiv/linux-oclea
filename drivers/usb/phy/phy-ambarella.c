@@ -560,7 +560,10 @@ static int ambarella_phy_probe(struct platform_device *pdev)
 
 	ambarella_init_phy_switcher(amb_phy);
 
-	/* Set usb phy to device/host based on dts, POC setting unreliable */
+	/* 
+	 * Teknique change:
+	 * Set usb phy to device/host based on dts, POC setting unreliable
+	 */
 	rval = of_property_read_string(pdev->dev.of_node, "amb,phy-route", &phy_route);
 	if (rval == 0) {
 		if (!strcasecmp(phy_route, "host")) {

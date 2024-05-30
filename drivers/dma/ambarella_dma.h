@@ -27,9 +27,6 @@
 #ifndef _AMBARELLA_DMA_H
 #define _AMBARELLA_DMA_H
 
-#define NR_DESCS_PER_CHANNEL		64
-#define AMBARELLA_DMA_MAX_LENGTH	((1 << 22) - 1)
-
 enum ambdma_status {
 	AMBDMA_STATUS_IDLE = 0,
 	AMBDMA_STATUS_BUSY,
@@ -54,7 +51,9 @@ struct ambdma_desc {
 	struct dma_async_tx_descriptor	txd;
 	struct list_head		tx_list;
 	struct list_head		desc_node;
+	struct list_head		work_node;
 	size_t				total_len;
+	int				index;
 	bool				is_cyclic;
 };
 
@@ -70,6 +69,8 @@ struct ambdma_chan {
 	struct list_head		queue_list;
 	struct list_head		free_list;
 	struct list_head		stopping_list;
+	/* work_list is just for software convenience */
+	struct list_head		work_list;
 
 	dma_addr_t			rt_addr;
 	u32				rt_attr;

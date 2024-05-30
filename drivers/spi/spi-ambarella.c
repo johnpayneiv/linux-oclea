@@ -37,6 +37,8 @@
 #include <linux/dma-mapping.h>
 #include <linux/dmapool.h>
 #include <linux/delay.h>
+#include <linux/cpufreq.h>
+#include <linux/clk-provider.h>
 #include <plat/spi.h>
 #include <plat/dma.h>
 #include <plat/rct.h>
@@ -73,6 +75,9 @@ struct ambarella_spi {
 	int					cs_active;
 	int					rw;
 	int					irq;
+#ifdef CONFIG_CPU_FREQ
+	struct notifier_block			cpufreq_nb;
+#endif
 };
 
 static void ambarella_spi_next_transfer(void *args);
@@ -588,6 +593,51 @@ static int ambarella_spi_hw_setup(struct spi_device *spi)
 	return 0;
 }
 
+#ifdef CONFIG_CPU_FREQ
+static int ambarella_spi_cpufreq_callback(struct notifier_block *nb,
+		unsigned long val, void *data)
+{
+	struct ambarella_spi		*bus;
+	bool clk_changed = false;
+
+	bus = container_of(nb, struct ambarella_spi, cpufreq_nb);
+
+	if (val == CPUFREQ_PRECHANGE) {
+		dev_info(bus->dev, "%s: CPUFREQ_PRECHANGE \n", __func__);
+	} else if (val == CPUFREQ_POSTCHANGE) {
+		dev_info(bus->dev, "%s: CPUFREQ_POSTCHANGE \n", __func__);
+
+		if (bus->clk) {
+			struct clk *parent = clk_get_parent(bus->clk);
+			const char *clk_name = __clk_get_name(bus->clk);
+			const char *parent_clk_name;
+
+			if (parent)
+				parent_clk_name = __clk_get_name(parent);
+
+			if (!strcmp(clk_name, "gclk_core")
+					|| !strcmp(clk_name,"gclk_ahb")
+					|| !strcmp(clk_name,"gclk_apb")) {
+				clk_changed = true;
+
+			} else if (parent && (!strcmp(parent_clk_name, "gclk_core")
+						|| !strcmp(parent_clk_name,"gclk_ahb")
+						|| !strcmp(parent_clk_name,"gclk_apb"))) {
+				clk_changed = true;
+			}
+
+		}
+
+		if (clk_changed) {
+			clk_set_rate(bus->clk, 0); /* set it to 0 first before reset because clock is cached */
+			clk_set_rate(bus->clk, bus->clk_freq);
+		}
+	}
+
+	return 0;
+}
+#endif
+
 static int ambarella_spi_probe(struct platform_device *pdev)
 {
 	struct resource				*res;
@@ -690,6 +740,15 @@ static int ambarella_spi_probe(struct platform_device *pdev)
 	err = spi_register_master(master);
 	if (err)
 		goto exit_rx_dma_free;
+
+#ifdef CONFIG_CPU_FREQ
+	bus->cpufreq_nb.notifier_call = ambarella_spi_cpufreq_callback;
+	err = cpufreq_register_notifier(&bus->cpufreq_nb, CPUFREQ_TRANSITION_NOTIFIER);
+	if (err < 0) {
+		pr_err("%s: Failed to register cpufreq notifier %d\n", __func__, err);
+		return err;
+	}
+#endif
 
 	dev_info(&pdev->dev, "Ambarella spi controller %d created.\r\n", master->bus_num);
 

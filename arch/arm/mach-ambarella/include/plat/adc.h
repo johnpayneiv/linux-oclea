@@ -32,11 +32,7 @@
 #define ADC_NUM_CHANNELS		5
 #elif (CHIP_REV == S2L) || (CHIP_REV == S3L) || (CHIP_REV == S5L) || (CHIP_REV == CV5)
 #define ADC_NUM_CHANNELS		4
-/*
- * Teknique change: Need 3 channels enabled on CV25 and  S6Lm as well, otherwise
- * ADCs do not work correctly.
- */
-#elif (CHIP_REV == CV1) || (CHIP_REV == CV2) || (CHIP_REV == CV22) || (CHIP_REV == CV25) || (CHIP_REV == S6LM)
+#elif (CHIP_REV == CV1) || (CHIP_REV == CV2) || (CHIP_REV == CV22)
 #define ADC_NUM_CHANNELS		3
 #else /* ch0 always exists, but no pin out for ch0 */
 #define ADC_NUM_CHANNELS		3

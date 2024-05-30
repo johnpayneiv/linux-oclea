@@ -16,7 +16,7 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 #
 
-obj-y += init_misc.o iav_helper.o event.o ambsyncproc.o
+obj-y += init_misc.o iav_helper.o event.o ambsyncproc.o soc.o
 
 obj-$(CONFIG_AMBARELLA_SUPPORT_GDMA)	+= gdma.o
 obj-$(CONFIG_RPMSG_AMBARELLA_VIRTIO)	+= rpmsg_virtio.o rpmsg_iodev.o

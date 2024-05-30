@@ -93,18 +93,13 @@
 #define TCAN4X5X_CLEAR_ALL_INT 0xffffffff
 #define TCAN4X5X_SET_ALL_INT 0xffffffff
 
-//#define TCAN4X5X_WRITE_CMD (0x61 << 24)
-//#define TCAN4X5X_READ_CMD (0x41 << 24)
-#define TCAN4X5X_WRITE_CMD (0x61)
-#define TCAN4X5X_READ_CMD (0x41)
+#define TCAN4X5X_WRITE_CMD (0x61 << 24)
+#define TCAN4X5X_READ_CMD (0x41 << 24)
 
 #define TCAN4X5X_MODE_SEL_MASK (BIT(7) | BIT(6))
 #define TCAN4X5X_MODE_SLEEP 0x00
 #define TCAN4X5X_MODE_STANDBY BIT(6)
 #define TCAN4X5X_MODE_NORMAL BIT(7)
-
-#define TCAN4X5X_DISABLE_WAKE_MSK	(BIT(31) | BIT(30))
-#define TCAN4X5X_DISABLE_INH_MSK	BIT(9)
 
 #define TCAN4X5X_SW_RESET BIT(2)
 
@@ -174,19 +169,13 @@ static int regmap_spi_gather_write(void *context, const void *reg,
 	struct device *dev = context;
 	struct spi_device *spi = to_spi_device(dev);
 	struct spi_message m;
-	u32 addr,wval, tval;
-	u16 regadd;
-
+	u32 addr;
 	struct spi_transfer t[2] = {
 		{ .tx_buf = &addr, .len = reg_len, .cs_change = 0,},
-		{ .tx_buf = &wval, .len = val_len, },
+		{ .tx_buf = val, .len = val_len, },
 	};
 
-//	addr = TCAN4X5X_WRITE_CMD | (*((u16 *)reg) << 8) | val_len >> 2;
-	regadd = *((u16 *)reg);
-	addr = TCAN4X5X_WRITE_CMD | (regadd & 0xFF00) | ((regadd & 0x00FF) << 16)| ((val_len >> 2) << 24);
-    tval = *((u32*)val);
-	wval = ((tval & 0xff000000) >> 24) | ((tval & 0x00ff0000) >> 8) | ((tval & 0x0000ff00) << 8) | (tval << 24);
+	addr = TCAN4X5X_WRITE_CMD | (*((u16 *)reg) << 8) | val_len >> 2;
 
 	spi_message_init(&m);
 	spi_message_add_tail(&t[0], &m);
@@ -199,6 +188,7 @@ static int tcan4x5x_regmap_write(void *context, const void *data, size_t count)
 {
 	u16 *reg = (u16 *)(data);
 	const u32 *val = data + 4;
+
 	return regmap_spi_gather_write(context, reg, 4, val, count - 4);
 }
 
@@ -219,20 +209,12 @@ static int tcan4x5x_regmap_read(void *context,
 				const void *reg, size_t reg_size,
 				void *val, size_t val_size)
 {
-	int rval;
-	u16 regadd;
-	u32 addr, rread;
 	struct device *dev = context;
 	struct spi_device *spi = to_spi_device(dev);
 
-//	u32 addr = TCAN4X5X_READ_CMD | (*((u16 *)reg) << 8) | val_size >> 2;
-	regadd = *((u16 *)reg);
-	addr = TCAN4X5X_READ_CMD | (regadd & 0xFF00) | ((regadd & 0x00FF) << 16)| ((val_size >> 2) << 24);
+	u32 addr = TCAN4X5X_READ_CMD | (*((u16 *)reg) << 8) | val_size >> 2;
 
-	rval = spi_write_then_read(spi, &addr, reg_size, &rread, val_size); //(u32 *)val, val_size);
-	*((u32*)val) = ((rread & 0xff000000) >> 24) | ((rread & 0x00ff0000) >> 8) | ((rread & 0x0000ff00) << 8) | (rread << 24);
-
-	return rval;
+	return spi_write_then_read(spi, &addr, reg_size, (u32 *)val, val_size);
 }
 
 static struct regmap_bus tcan4x5x_bus = {
@@ -349,52 +331,37 @@ static int tcan4x5x_init(struct m_can_classdev *cdev)
 	return ret;
 }
 
-static int tcan4x5x_disable_wake(struct m_can_classdev *cdev)
-{
-	struct tcan4x5x_priv *tcan4x5x = cdev->device_data;
-
-	return regmap_update_bits(tcan4x5x->regmap, TCAN4X5X_CONFIG,
-				  TCAN4X5X_DISABLE_WAKE_MSK, 0x00);
-}
-
-static int tcan4x5x_disable_state(struct m_can_classdev *cdev)
-{
-	struct tcan4x5x_priv *tcan4x5x = cdev->device_data;
-
-	return regmap_update_bits(tcan4x5x->regmap, TCAN4X5X_CONFIG,
-				  TCAN4X5X_DISABLE_INH_MSK, 0x01);
-}
-
 static int tcan4x5x_parse_config(struct m_can_classdev *cdev)
 {
 	struct tcan4x5x_priv *tcan4x5x = cdev->device_data;
 	int ret;
 
-    tcan4x5x->device_wake_gpio = devm_gpiod_get(cdev->dev, "device-wake",
+	tcan4x5x->device_wake_gpio = devm_gpiod_get(cdev->dev, "device-wake",
 						    GPIOD_OUT_HIGH);
-
 	if (IS_ERR(tcan4x5x->device_wake_gpio)) {
-		if (PTR_ERR(tcan4x5x->device_wake_gpio) == -EPROBE_DEFER)
-			return -EPROBE_DEFER;
-    	tcan4x5x_disable_wake(cdev);
+		dev_err(cdev->dev, "device-wake gpio not defined\n");
+		return -EINVAL;
 	}
 
 	tcan4x5x->reset_gpio = devm_gpiod_get_optional(cdev->dev, "reset",
-						       GPIOD_OUT_HIGH);
-	if (IS_ERR(tcan4x5x->reset_gpio)) {
+						       GPIOD_OUT_LOW);
+	if (IS_ERR(tcan4x5x->reset_gpio))
 		tcan4x5x->reset_gpio = NULL;
-	}
 
 	ret = tcan4x5x_reset(tcan4x5x);
 	if (ret)
 		return ret;
+
 	tcan4x5x->device_state_gpio = devm_gpiod_get_optional(cdev->dev,
 							      "device-state",
 							      GPIOD_IN);
-	if (IS_ERR(tcan4x5x->device_state_gpio)) {
+	if (IS_ERR(tcan4x5x->device_state_gpio))
 		tcan4x5x->device_state_gpio = NULL;
-		tcan4x5x_disable_state(cdev);
-	}
+
+	tcan4x5x->power = devm_regulator_get_optional(cdev->dev,
+						      "vsup");
+	if (PTR_ERR(tcan4x5x->power) == -EPROBE_DEFER)
+		return -EPROBE_DEFER;
 
 	return 0;
 }
@@ -429,12 +396,6 @@ static int tcan4x5x_can_probe(struct spi_device *spi)
 	if (!priv)
 		return -ENOMEM;
 
-	priv->power = devm_regulator_get_optional(&spi->dev, "vsup");
-	if (PTR_ERR(priv->power) == -EPROBE_DEFER)
-		return -EPROBE_DEFER;
-	else
-		priv->power = NULL;
-
 	mcan_class->device_data = priv;
 
 	m_can_class_get_clocks(mcan_class);
@@ -463,8 +424,12 @@ static int tcan4x5x_can_probe(struct spi_device *spi)
 
 	spi_set_drvdata(spi, priv);
 
-	/* Configure the SPI bus need to use 8 bit with byte swap in read and write fn's*/
-	spi->bits_per_word = 8;
+	ret = tcan4x5x_parse_config(mcan_class);
+	if (ret)
+		goto out_clk;
+
+	/* Configure the SPI bus */
+	spi->bits_per_word = 32;
 	ret = spi_setup(spi);
 	if (ret)
 		goto out_clk;
@@ -476,13 +441,7 @@ static int tcan4x5x_can_probe(struct spi_device *spi)
 		goto out_clk;
 	}
 
-	ret = tcan4x5x_power_enable(priv->power, 1);
-	if (ret)
-		goto out_clk;
-
-	ret = tcan4x5x_parse_config(mcan_class);
-	if (ret)
-		goto out_power;
+	tcan4x5x_power_enable(priv->power, 1);
 
 	ret = tcan4x5x_init(mcan_class);
 	if (ret)

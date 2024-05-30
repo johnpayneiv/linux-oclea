@@ -481,6 +481,9 @@ static int pca954x_probe(struct i2c_client *client,
 	if (idle_disconnect_dt)
 		data->idle_state = MUX_IDLE_DISCONNECT;
 
+	/*
+ 	 * Teknique changes: allow bus numbering for hydra.
+	 */
 	begin_id = 0;
 	if (of_property_read_u32(np, "bus-num-start", &curreg) == 0) {
 		begin_id = curreg;

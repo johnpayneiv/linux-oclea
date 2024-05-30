@@ -606,11 +606,32 @@ static void ambarella_free_descriptor(struct ambarella_ep *ep,
 {
 	struct ambarella_data_desc *data_desc, *next_data_desc;
 	struct dma_pool *desc_dma_pool = ep->udc->desc_dma_pool;
-	int i;
+	struct ambarella_udc *udc = ep->udc;
+	int i, need_flush_tx_fifo = 0, retry = 10000;
+
+	/* If this request matches current DMA processing, ensure the DMA chain
+	 * of this request is completely finished, poll DMA demand and flush the TX FIFO */
+	if (ep->dir == USB_DIR_IN
+	    && (req->data_desc_addr ==
+		readl(udc->base_reg + ep->ep_reg.dat_desc_ptr_reg))) {
+		need_flush_tx_fifo = 1;
+	}
 
 	next_data_desc = req->data_desc;
 	for(i = 0; i < req->desc_count; i++){
 		data_desc = next_data_desc;
+
+		if (need_flush_tx_fifo) {
+			/* Wait DMA processing each descriptor */
+			while (--retry > 0 && !(data_desc->status & (USB_DMA_BUF_DMA_DONE | USB_DMA_BUF_DMA_BUSY))) {
+				setbitsl(udc->base_reg + ep->ep_reg.ctrl_reg,
+					 USB_EP_POLL_DEMAND | USB_EP_FLUSH);
+				udelay(100);
+			}
+
+			if (retry == 0)
+				pr_warn("%s: Wait %s flushing FIFO timeout.\n", __func__, ep->ep.name);
+		}
 		data_desc->status = USB_DMA_BUF_HOST_BUSY | USB_DMA_LAST;
 		data_desc->data_ptr = 0xffffffff;
 		data_desc->next_desc_ptr = 0;
@@ -619,6 +640,10 @@ static void ambarella_free_descriptor(struct ambarella_ep *ep,
 		ambarella_ep_dummy_patch(ep, data_desc);
 		dma_pool_free(desc_dma_pool, data_desc, data_desc->cur_desc_addr);
 	}
+
+	/* Flush dirty data out of the TX FIFO */
+	if (need_flush_tx_fifo)
+		setbitsl(udc->base_reg + ep->ep_reg.ctrl_reg, USB_EP_FLUSH);
 
 	req->desc_count = 0;
 	req->data_desc = NULL;
@@ -1280,7 +1305,7 @@ static void udc_epin_interrupt(struct ambarella_udc *udc, u32 ep_id)
 	u32 ep_status = 0;
 	u32 hd_status = USB_EP_TXFIFO_EMPTY | USB_EP_TRN_DMA_CMPL | USB_EP_IN_PKT;
 	struct ambarella_ep *ep = &udc->ep[ep_id];
-	struct ambarella_request *req;
+	struct ambarella_request *req = NULL;
 
 	ep_status = readl(udc->base_reg + ep->ep_reg.sts_reg);
 	dprintk(DEBUG_NORMAL, "%s: ep_status = 0x%08x\n", ep->ep.name, ep_status);
@@ -1290,8 +1315,6 @@ static void udc_epin_interrupt(struct ambarella_udc *udc, u32 ep_id)
 
 	if (ambarella_check_bna_error(ep, ep_status)
 		|| ambarella_check_he_error(ep, ep_status)) {
-		struct ambarella_request	*req = NULL;
-
 		ep->dma_going = 0;
 		ep->cancel_transfer = 0;
 		ep->need_cnak = 0;
@@ -1304,14 +1327,18 @@ static void udc_epin_interrupt(struct ambarella_udc *udc, u32 ep_id)
 	}
 
 	if (ep_status & hd_status) {
-		ep_status &= hd_status;
-		writel(ep_status, udc->base_reg + ep->ep_reg.sts_reg);
-
 		/* TxFIFO is empty, but we've not used this bit, so just ignored simply. */
-		//if (ep_status == USB_EP_TXFIFO_EMPTY) {
-		//}
+		if (ep_status & USB_EP_TXFIFO_EMPTY) {
+			writel(USB_EP_TXFIFO_EMPTY, udc->base_reg + ep->ep_reg.sts_reg);
+		}
 
 		if (ep_status & USB_EP_TRN_DMA_CMPL) {
+			/*
+			 * USB_EP_TRN_DMA_CMPL may be re-triggered when handling the previous one,
+			 * so we should clean it at the beginning.
+			 */
+			writel(USB_EP_TRN_DMA_CMPL, udc->base_reg + ep->ep_reg.sts_reg);
+
 			/* write dummy desc to try to avoid BNA error */
 			ep->dummy_desc->status =
 				USB_DMA_BUF_HOST_RDY | USB_DMA_LAST;
@@ -1335,9 +1362,15 @@ static void udc_epin_interrupt(struct ambarella_udc *udc, u32 ep_id)
 					ambarella_handle_data_in(&udc->ep[ep_id]);
 				}
 			}
-		}
 
-		if (ep_status & USB_EP_IN_PKT) {
+			if (IS_EP0(ep)) {
+				return;
+			}
+		} else if (ep_status & USB_EP_IN_PKT) {
+			/*
+			 * When USB_EP_TRN_DMA_CMPL and USB_EP_IN_PKT come at the same time, USB_EP_IN_PKT belongs
+			 * to the transaction just completed. In this case, should not send NAK to host.
+			 */
 			if (!ep->halted && !ep->cancel_transfer && !list_empty(&ep->queue)) {
 				req = list_first_entry(&ep->queue,
 					struct ambarella_request, queue);
@@ -1346,6 +1379,14 @@ static void udc_epin_interrupt(struct ambarella_udc *udc, u32 ep_id)
 				ambarella_set_ep_nak(ep);
 			}
 			ep->cancel_transfer = 0;
+		}
+
+		if (ep_status & USB_EP_IN_PKT) {
+			/*
+			 * Cleaning USB_EP_IN_PKT at the beginning makes usb rndis not work properly,
+			 * so we should clean it at the end.
+			 */
+			writel(USB_EP_IN_PKT, udc->base_reg + ep->ep_reg.sts_reg);
 		}
 	} else if (ep_status) {
 		pr_debug("%s: %s, Unknown int source(0x%08x)\n", __func__,
@@ -1734,7 +1775,7 @@ static int ambarella_udc_queue(struct usb_ep *_ep, struct usb_request *_req,
 	struct ambarella_ep	*ep = NULL;
 	struct ambarella_udc	*udc;
 	unsigned long flags;
-	int i;
+	int i, ret;
 
 	if (unlikely (!_ep)) {
 		pr_err("%s: _ep is NULL\n", __func__);
@@ -1819,7 +1860,11 @@ static int ambarella_udc_queue(struct usb_ep *_ep, struct usb_request *_req,
 	_req->status = -EINPROGRESS;
 	_req->actual = 0;
 
-	ambarella_prepare_descriptor(ep, req, gfp_flags);
+	ret = ambarella_prepare_descriptor(ep, req, gfp_flags);
+	if (ret) {
+		pr_err("%s: could not create DMA desc chain:%d\n", __func__, ret);
+		return ret;
+	}
 
 	/* disable IRQ handler's bottom-half  */
 	spin_lock_irqsave(&udc->lock, flags);
@@ -1890,7 +1935,6 @@ static int ambarella_udc_dequeue(struct usb_ep *_ep, struct usb_request *_req)
 		return -EINVAL;
 
 	spin_lock_irqsave(&ep->udc->lock, flags);
-
 	/* make sure the request is actually queued on this endpoint */
 	list_for_each_entry (req, &ep->queue, queue) {
 		if (&req->req == _req)

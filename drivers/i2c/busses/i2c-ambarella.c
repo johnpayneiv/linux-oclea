@@ -609,7 +609,7 @@ static int ambarella_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg *msgs,
 		if (hw_state != AMBA_I2C_HW_STATE_IDLE)
 			dev_dbg(pinfo->dev, "Xfer exits with non-idle hw state %d.\n", hw_state);
 
-		if (!timeout) {
+		if (timeout <= 0) {
 			pinfo->state = AMBA_I2C_STATE_NO_ACK;
 		}
 		dev_dbg(pinfo->dev, "%ld jiffies left.\n", timeout);
@@ -646,7 +646,6 @@ static u32 ambarella_i2c_func(struct i2c_adapter *adap)
 
 static const struct i2c_algorithm ambarella_i2c_algo = {
 	.master_xfer	= ambarella_i2c_xfer,
-	.master_xfer_atomic	= ambarella_i2c_xfer,
 	.functionality	= ambarella_i2c_func,
 };
 

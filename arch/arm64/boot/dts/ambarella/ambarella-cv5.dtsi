@@ -1349,6 +1349,11 @@
 			amb,secure-ctrl-bit = <31>;
 		};
 
+		cpuid_syscon: cpuid@e0000000 {
+			compatible = "ambarella,cpuid", "syscon";
+			reg = <0xe0000000 0x1000>;
+		};
+
 		pcie_phyrst: pcie-phyrst {
 			compatible = "ambarella,pcie-phyrst";
 			#reset-cells = <1>;

@@ -330,15 +330,15 @@ Optional properties:
 - amb,secure-reg-na: specify the registers which are non-accessible in non-secure world.
 
 PS:
-  a) If neither "amb,secure-reg-ro" nor "amb,secure-reg-na" are specified, all the
-     registers belong to this device are non-accessible.
+  a) If neither "amb,secure-reg-ro" nor "amb,secure-reg-na" is specified, all the
+     registers belong to this device are non-accessible in non-secure world.
   b) If either "amb,secure-reg-ro" or "amb,secure-reg-na" is specified, the registers
      not specified by these two properties but belong to this device are accessible
      in non-secure world.
   c) If secure gpios are specified, the `pinctrl` and the corresponding GPIO banks are
      put in secure world.
 
-iv) Example
+iv) Example - 1
 -----------
 	secure-monitor {
 		compatible = "ambarella,secure-monitor";
@@ -360,17 +360,40 @@ iv) Example
 		compatible = "ambarella,sec-scratchpad";
 		reg = <0xe8001000 0x1000>;
 		amb,secure-ctrl-bit = <31>;
-		amb,secure-reg-ro = <0xe80010a0 0x00c>;
+		amb,secure-reg-ro = <0xe8001000 0x48 0xe80010a0 0x00c>;
 	};
 
-In this example, both s_scratchpad and watchdog0 are in secure world. And, all the
-registers belong to watchdog0, i.e., <0xec002000 0x1000> are non-accessible in
-non-secure world, however, because "amb,secure-reg-ro" is specified in s_scratchpad
-node, the register belong to s_scratchpad has different behavior:
-a) <0xe80010a0 0x00c> are read-only in non-secure world.
-b) the registers belong to s_scratchpad but not located in <0xe80010a0 0x00c> are all
-   accessible in non-secure world.
+In this example, both s_scratchpad and watchdog0 are in secure world.
+For watchdog0, since neither "amb,secure-reg-ro" nor "amb,secure-reg-na" is specified,
+all the registers belong to watchdog0, i.e., <0xec002000 0x1000> are non-accessible in
+non-secure world.
+For s_scratchpad, as "amb,secure-reg-ro" is specified in s_scratchpad node, its registers
+have different accessibility:
+a) Both <0xe8001000 0x48> and <0xe80010a0 0x00c> are read-only in non-secure world.
+b) The registers belong to s_scratchpad but not located in neither <0xe8001000 0x48> nor
+   <0xe80010a0 0x00c> are all accessible in non-secure world.
 
+v) Example - 2
+-----------
+	secure-monitor {
+		compatible = "ambarella,secure-monitor";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		device = <&s_scratchpad>;
+	};
+
+	s_scratchpad: s_scratchpad@e8001000 {
+		compatible = "ambarella,sec-scratchpad";
+		reg = <0xe8001000 0x1000>;
+		amb,secure-ctrl-bit = <31>;
+		amb,secure-reg-na = <0xe8001000 0x48 0xe80010a0 0x18>;
+	};
+
+In this example, s_scratchpad is in secure world.
+As "amb,secure-reg-na" is specified in s_scratchpad node, its registers have different accessibility:
+a) Both <0xe8001000 0x48> and <0xe80010a0 0x18> are non-accessible in non-secure world.
+b) The registers belong to s_scratchpad but not located in neither <0xe8001000 0x48> nor <0xe80010a0 0x18>
+   are all accessible in non-secure world.
 
 9) - DMA node
 =============

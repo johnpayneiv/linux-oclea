@@ -1052,6 +1052,8 @@ static void ambarella_nand_cmdfunc(struct nand_chip *chip, unsigned cmd,
 		writel_relaxed(fio_ctr_bak, host->regbase + FIO_CTRL_OFFSET);
 		break;
 	}
+
+	BUG_ON(host->err_code != 0);
 }
 
 static void ambarella_nand_hwctl(struct  nand_chip *chip, int mode)

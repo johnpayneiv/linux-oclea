@@ -41,6 +41,7 @@
 #include <linux/crc32.h>
 #include <linux/time.h>
 #include <linux/mii.h>
+#include <linux/if_vlan.h>
 #include <linux/phy.h>
 #include <linux/ethtool.h>
 #include <linux/phylink.h>
@@ -1888,6 +1889,21 @@ static inline void ambeth_check_rdes0_status(struct ambeth_info *lp,
 	}
 }
 
+static void ambeth_rx_vlan(struct ambeth_info *priv, struct sk_buff *skb)
+{
+	struct vlan_ethhdr *vlanhdr = (struct vlan_ethhdr *)skb->data;
+	unsigned short vlanid, protocol;
+
+	if (likely(vlanhdr->h_vlan_proto != htons(ETH_P_8021Q)))
+		return ;
+
+	vlanid = ntohs(vlanhdr->h_vlan_TCI);
+	protocol = vlanhdr->h_vlan_proto;
+	memmove(skb->data + VLAN_HLEN, vlanhdr, ETH_ALEN * 2);
+	skb_pull(skb, VLAN_HLEN);
+	__vlan_hwaccel_put_tag(skb, protocol, vlanid);
+}
+
 static inline void ambeth_napi_rx(struct ambeth_info *lp, u32 status, u32 entry, bool fragment)
 {
 	short pkt_len;
@@ -1909,6 +1925,13 @@ static inline void ambeth_napi_rx(struct ambeth_info *lp, u32 status, u32 entry,
 		dma_unmap_single(lp->ndev->dev.parent, mapping,
 			lp->bfsize, DMA_FROM_DEVICE);
 		skb_put(skb, pkt_len);
+
+		if (unlikely(lp->dump_rx))
+			ambhw_dump_buffer(__func__, skb->data,  skb->len);
+
+		ambeth_rx_vlan(lp, skb);
+
+		/* skb_pull 14 bytes in eth_type_trans() */
 		skb->protocol = eth_type_trans(skb, lp->ndev);
 #if 0
 		if (lp->ipc_rx) {
@@ -1924,10 +1947,6 @@ static inline void ambeth_napi_rx(struct ambeth_info *lp, u32 status, u32 entry,
 			}
 		}
 #endif
-		if (unlikely(lp->dump_rx)) {
-			ambhw_dump_buffer(__func__, (skb->data - 14),
-				(skb->len + 14));
-		}
 
 		if (unlikely(lp->loopback && lp->selftest_callback)) {
 			lp->selftest_callback(skb, lp->ndev);

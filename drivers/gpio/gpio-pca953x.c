@@ -1051,6 +1051,9 @@ static int pca953x_probe(struct i2c_client *client,
 		chip->driver_data = (uintptr_t)match;
 	}
 
+	/*
+	 * Teknique changes to allow custom gpio base numbering for hydra.
+   	 */
 	chip->gpio_chip.parent = &chip->client->dev;
 	if (chip->gpio_chip.parent) {
 		if (of_property_read_u32(chip->gpio_chip.parent->of_node, "gpio-base", &tempu32) == 0) {

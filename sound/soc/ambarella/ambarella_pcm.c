@@ -39,12 +39,11 @@
 #include <sound/dmaengine_pcm.h>
 #include <plat/dma.h>
 
-
 #define AMBA_MAX_DESC_NUM		128
 #define AMBA_MIN_DESC_NUM		2
 #define AMBA_PERIOD_BYTES_MAX		(128 * 1024)
 #define AMBA_PERIOD_BYTES_MIN		32
-#define AMBA_BUFFER_BYTES_MAX		(256 * 1024)
+#define AMBA_BUFFER_BYTES_MAX		(1024 * 1024)
 
 static const struct snd_pcm_hardware ambarella_pcm_hardware = {
 	.info			= SNDRV_PCM_INFO_INTERLEAVED |

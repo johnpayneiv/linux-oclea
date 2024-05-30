@@ -335,6 +335,8 @@
 #define SD_ADMA_MAX_TRANS_SZ            (65535 * 512)
 #define SD_ADMA_MAX_TRANS_SECTORS       (65535)
 
+#define BOOT_MODE_MASK	(0x00000030)
+#define BOOT_MODE_EMMC	(0x00000020)
 /* ==========================================================================*/
 
 #define sd_slot_is_valid(slot)		((slot) < SD_INSTANCES ? 1 : 0)

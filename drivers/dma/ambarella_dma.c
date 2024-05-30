@@ -50,6 +50,17 @@
 #define DMA_SEL1_OFFSET				0x04
 
 #define AMBARELLA_MAX_DESC_TRIALS		10
+#define AMBARELLA_MAX_DESC_NUM			64
+#define AMBARELLA_DMA_MAX_LENGTH		((1 << 22) - 1)
+
+#define DMA_CHANX_STA_ERR_MASK			( \
+		DMA_CHANX_STA_DM		| \
+		DMA_CHANX_STA_OE		| \
+		DMA_CHANX_STA_DA		| \
+		DMA_CHANX_STA_ME		| \
+		DMA_CHANX_STA_BE		| \
+		DMA_CHANX_STA_RWE		| \
+		DMA_CHANX_STA_AE		)
 
 /* The set of bus widths supported by the DMA controller */
 #define AMBARELLA_DMA_BUSWIDTHS					\
@@ -353,7 +364,7 @@ static irqreturn_t ambdma_dma_irq_handler(int irq, void *dev_data)
 {
 	struct ambdma_device *amb_dma = dev_data;
 	struct ambdma_chan *amb_chan;
-	u32 i, int_src, status;
+	u32 i, int_src;
 	irqreturn_t ret = IRQ_NONE;
 
 	int_src = readl(amb_dma->regbase + DMA_INT_OFFSET);
@@ -364,12 +375,9 @@ static irqreturn_t ambdma_dma_irq_handler(int irq, void *dev_data)
 		amb_chan = &amb_dma->amb_chan[i];
 		spin_lock(&amb_chan->lock);
 		if (int_src & (1 << i)) {
-			status = readl(dma_chan_sta_reg(amb_chan));
-			if (status & ~AMBARELLA_DMA_MAX_LENGTH) {
-				writel(0, dma_chan_sta_reg(amb_chan));
-				tasklet_schedule(&amb_chan->tasklet);
-				ret = IRQ_HANDLED;
-			}
+			writel(0, dma_chan_sta_reg(amb_chan));
+			tasklet_schedule(&amb_chan->tasklet);
+			ret = IRQ_HANDLED;
 		}
 		spin_unlock(&amb_chan->lock);
 	}
@@ -391,25 +399,28 @@ static int ambdma_stop_channel(struct ambdma_chan *amb_chan)
 			 * untill DMA channel stops.
 			 */
 			first = ambdma_first_active(amb_chan);
-			first->lli->attr |= DMA_DESC_EOC;
-			list_for_each_entry(amb_desc, &first->tx_list, desc_node) {
-				amb_desc->lli->attr |= DMA_DESC_EOC;
+			if (first) {
+				first->lli->attr |= DMA_DESC_EOC;
+				list_for_each_entry(amb_desc, &first->tx_list, desc_node) {
+					amb_desc->lli->attr |= DMA_DESC_EOC;
+				}
+				amb_chan->status = AMBDMA_STATUS_STOPPING;
+				/*
+				* active_list is still being used by DMA controller,
+				* so move it to stopping_list to avoid being
+				* initialized by next transfer.
+				*/
+				list_move_tail(&first->desc_node, &amb_chan->stopping_list);
 			}
-			amb_chan->status = AMBDMA_STATUS_STOPPING;
-			/*
-			 * active_list is still being used by DMA controller,
-			 * so move it to stopping_list to avoid being
-			 * initialized by next transfer.
-			 */
-			list_move_tail(&first->desc_node, &amb_chan->stopping_list);
-
 			if (!amb_dma->non_support_prs) {
 				u32 val = readl(amb_dma->regbase + DMA_EARLY_END_OFFSET);
 				val |= 0x1 << amb_chan->chan.chan_id;
 				writel(val, amb_dma->regbase + DMA_EARLY_END_OFFSET);
 
 				amb_chan->status = AMBDMA_STATUS_IDLE;
-				ambdma_return_desc(amb_chan, ambdma_first_stopping(amb_chan));
+
+				if (first)
+					ambdma_return_desc(amb_chan, ambdma_first_stopping(amb_chan));
 				/* clear early end dma interrupt */
 				writel(0x0, dma_chan_sta_reg(amb_chan));
 			}
@@ -464,8 +475,98 @@ static int ambdma_resume_channel(struct ambdma_chan *amb_chan)
 	return 0;
 }
 
+/*
+ * The descriptor-processing sequency is as below:
+ * 1. SW set DMA in descriptor mode and enable it.
+ * 2. HW clear status[26:0] to 0.([31:27] are cleared by SW)
+ * 3. HW fetch descriptor and fill related registers in this order:
+ *    DEST, SRC, DESC(for next descriptor), CTRL.
+ * 4. When dma is done, HW writes report to dram, and then set OD bit(status[27])
+ *    and interrupt if ID=1, or set DD bit(status[28] and interrupt if EOC=1.
+ * 5. HW back to 2 if EOC=0.
+ * 6. Done.
+ *
+ * Note:
+ *   all of the channel registers except for ctrl[31:30] and status[31:27]
+ *   are unable to read during descriptor processing. If SW intends to read
+ *   these registers, the behavior is as below:
+ *
+ *   When HW request desc (8B)    -> SW always get status register value
+ *   When HW wait data1           -> SW always get dest register value
+ *   When HW request desc+8 (8B)  -> SW always get src register value
+ *   When HW wait data2           -> SW always get dest register value
+ *   When HW request desc+16 (8B) -> SW always get ctrl register value
+ *   When HW wait data3           -> SW always get src register value
+ *   When HW update ctrl          -> SW always get ctrl register value
+ *   When DMA running             -> normal
+ *   When HW update report        -> SW always get status status register value.
+ */
+static struct ambdma_desc *ambdma_get_current_desc(struct ambdma_chan *amb_chan, u32 *status)
+{
+	struct ambdma_desc *amb_desc = NULL, *_amb_desc;
+	u32 da, sta, ni_addr, ctr, _ctr;
+
+	if (status)
+		*status = 0;
+
+	/* check desc reg */
+	da = readl(dma_chan_da_reg(amb_chan));
+
+	BUG_ON(list_empty(&amb_chan->work_list));
+	list_for_each_entry(_amb_desc, &amb_chan->work_list, work_node) {
+		if ((_amb_desc->txd.phys & GENMASK(31, 0)) == da) {
+			amb_desc = _amb_desc;
+			break;
+		}
+	}
+
+	if (amb_desc == NULL)
+		return NULL;
+
+	if (amb_desc == list_first_entry(&amb_chan->work_list, struct ambdma_desc, work_node))
+		amb_desc = list_last_entry(&amb_chan->work_list, struct ambdma_desc, work_node);
+	else
+		amb_desc = list_prev_entry(amb_desc, work_node);
+
+	/* check status reg */
+	sta = readl(dma_chan_sta_reg(amb_chan));
+	if ((sta & DMA_CHANX_STA_ERR_MASK)
+		|| ((sta & AMBARELLA_DMA_MAX_LENGTH) > amb_desc->lli->xfr_count)
+		|| ((sta & GENMASK(26, 0)) == (amb_desc->lli->attr & GENMASK(26, 0)))
+		|| ((sta & GENMASK(26, 0)) == (amb_chan->rt_addr & GENMASK(26, 0))))
+		return NULL;
+
+	/* if dma between IO and memory, check more */
+	if (amb_chan->rt_addr != ~(phys_addr_t)0) {
+		/* check src or dest reg */
+		if (amb_chan->rt_attr & DMA_DESC_RM)
+			ni_addr = readl(dma_chan_dst_reg(amb_chan));
+		else
+			ni_addr = readl(dma_chan_src_reg(amb_chan));
+
+		if (ni_addr != (amb_chan->rt_addr & GENMASK(31, 0)))
+			return NULL;
+
+		/* check control reg */
+		_ctr = amb_desc->lli->xfr_count;
+		_ctr |= ((amb_chan->rt_attr & 0x00E00000) >> 21) << 27;
+		_ctr |= ((amb_chan->rt_attr & 0x00070000) >> 16) << 24;
+		_ctr |= ((amb_chan->rt_attr & 0x00180000) >> 19) << 22;
+
+		ctr = readl(dma_chan_ctr_reg(amb_chan));
+		if ((ctr & GENMASK(29, 0)) != _ctr)
+			return NULL;
+	}
+
+	if (status)
+		*status = sta;
+
+	return amb_desc;
+}
+
 static void ambdma_dostart(struct ambdma_chan *amb_chan, struct ambdma_desc *first)
 {
+	struct ambdma_desc *amb_desc;
 	ktime_t timeout;
 
 	/*
@@ -481,6 +582,16 @@ static void ambdma_dostart(struct ambdma_chan *amb_chan, struct ambdma_desc *fir
 		return;
 	}
 
+	INIT_LIST_HEAD(&amb_chan->work_list);
+
+	list_add_tail(&first->work_node, &amb_chan->work_list);
+
+	if (!list_empty(&first->tx_list)) {
+		list_for_each_entry(amb_desc, &first->tx_list, desc_node) {
+			list_add_tail(&amb_desc->work_node, &amb_chan->work_list);
+		}
+	}
+
 	writel(0x0, dma_chan_sta_reg(amb_chan));
 	writel(first->txd.phys, dma_chan_da_reg(amb_chan));
 	writel(DMA_CHANX_CTR_EN | DMA_CHANX_CTR_D, dma_chan_ctr_reg(amb_chan));
@@ -491,16 +602,8 @@ static void ambdma_dostart(struct ambdma_chan *amb_chan, struct ambdma_desc *fir
 	 * this can gurantee get an stable status
 	 */
 	timeout = ktime_add_ms(ktime_get(), 100);
-	while(1) {
-		u32 ctrl,attr;
 
-		ctrl = readl(dma_chan_ctr_reg(amb_chan));
-		attr = first->lli->attr;
-
-		if((((attr & 0x00E00000) >> 21) == ((ctrl & 0x38000000) >> 27)) &&
-		   (((attr & 0x00180000) >> 19) == ((ctrl & 0x00C00000) >> 22)) &&
-		   (((attr & 0x00070000) >> 16) == ((ctrl & 0x07000000) >> 24)))
-			break;
+	while(ambdma_get_current_desc(amb_chan, NULL) == NULL) {
 		if (ktime_after(ktime_get(), timeout))
 			break;
 
@@ -552,7 +655,7 @@ static int ambdma_alloc_chan_resources(struct dma_chan *chan)
 	}
 
 	/* Alloc descriptors for this channel */
-	for (i = 0; i < NR_DESCS_PER_CHANNEL; i++) {
+	for (i = 0; i < AMBARELLA_MAX_DESC_NUM; i++) {
 		amb_desc = ambdma_alloc_desc(chan, GFP_KERNEL);
 		if (amb_desc == NULL) {
 			struct ambdma_desc *d, *_d;
@@ -568,6 +671,8 @@ static int ambdma_alloc_chan_resources(struct dma_chan *chan)
 
 	spin_lock_irqsave(&amb_chan->lock, flags);
 	amb_chan->descs_allocated = i;
+	amb_chan->rt_addr = ~(phys_addr_t)0;
+	amb_chan->rt_attr = 0;
 	list_splice_init(&tmp_list, &amb_chan->free_list);
 	dma_cookie_init(chan);
 	if (!amb_chan->chan.private)
@@ -601,38 +706,6 @@ static void ambdma_free_chan_resources(struct dma_chan *chan)
 		ambdma_free_desc(chan, amb_desc);
 }
 
-static int ambdma_check_count_status(struct ambdma_chan *amb_chan, struct ambdma_desc *first)
-{
-	u32 mask, status_old, status, count;
-	ktime_t timeout;
-
-	mask = DMA_CHANX_STA_OD | DMA_CHANX_STA_ME | DMA_CHANX_STA_BE | DMA_CHANX_STA_RWE | DMA_CHANX_STA_AE;
-
-	status_old = status = readl(dma_chan_sta_reg(amb_chan));
-	count = status & AMBARELLA_DMA_MAX_LENGTH;
-
-	if ((status & mask) || (count > first->lli->xfr_count)) {
-		timeout = ktime_add_ms(ktime_get(), 10);
-
-		while (1) {
-			status = readl(dma_chan_sta_reg(amb_chan));
-			count = status & AMBARELLA_DMA_MAX_LENGTH;
-
-			if (((status & mask) == (status_old & DMA_CHANX_STA_OD)) && (count < first->lli->xfr_count))
-				break;
-
-			if (ktime_after(ktime_get(), timeout)) {
-				WARN_ONCE(ktime_after(ktime_get(), timeout),
-					"status: 0x%x -> 0x%x\n", status_old, status);
-				break;
-			}
-		}
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
 /*
  * If this function is called when the dma channel is transferring data,
  * you may get inaccuracy result.
@@ -645,10 +718,9 @@ static int ambdma_get_bytes_left(struct dma_chan *chan, dma_cookie_t cookie)
 {
 	struct ambdma_chan *amb_chan = to_ambdma_chan(chan);
 	struct ambdma_desc *first = NULL, *amb_desc;
-	phys_addr_t desc_phys;
+	u32 status, trials;
+	size_t count = 0;
 	unsigned long flags;
-	size_t count = 0, trials;
-	ktime_t timeout;
 
 	spin_lock_irqsave(&amb_chan->lock, flags);
 
@@ -669,6 +741,7 @@ static int ambdma_get_bytes_left(struct dma_chan *chan, dma_cookie_t cookie)
 	 * completed desc from the "xfr_count" field in desc.
 	 */
 	if (likely(first)) {
+		ktime_t timeout = ktime_add_ms(ktime_get(), 10);
 		/*
 		 * The DA and STA registers cannot be read both atomically, hence
 		 * a race condition may occur: the first read register may refer
@@ -676,82 +749,36 @@ static int ambdma_get_bytes_left(struct dma_chan *chan, dma_cookie_t cookie)
 		 * a later child descriptor in the list because of the DMA transfer
 		 * progression inbetween the two reads.
 		 *
-		 * One solution could have been to pause the DMA transfer, read
-		 * the DA and STA registers then resume the DMA transfer.
-		 * Nonetheless, this approach presents a drawback, that is, if the
-		 * DMA transfer is paused, RX overruns or TX underruns are more
-		 * likey to occur depending on the system latency.
+		 * In addition, the descriptor-processing logic is always running
+		 * in background, it will lead to get invalid values when reading
+		 * from desc and status registers, so that we have to check the
+		 * register values to make sure they are valid.
 		 */
-		timeout = ktime_add_ms(ktime_get(), 100);
-again:
 		for (trials = 0; trials < AMBARELLA_MAX_DESC_TRIALS; trials++) {
-			desc_phys = readl(dma_chan_da_reg(amb_chan));
+			while (1) {
+				amb_desc = ambdma_get_current_desc(amb_chan, &status);
+				if (amb_desc)
+					break;
 
-			rmb(); /* ensure Descriptor Address is read before Status */
-			count = readl(dma_chan_sta_reg(amb_chan));
-			/*
-			 * There is such chance that current descriptor is completed
-			 * just when we poll the status registers.
-			 */
-			if (first->is_cyclic && ambdma_check_count_status(amb_chan, first) < 0) {
-				writel(count & ~DMA_CHANX_STA_OD, dma_chan_sta_reg(amb_chan));
-				continue;
+				WARN_ONCE(ktime_after(ktime_get(), timeout),
+					"timeout: status = 0x%08x\n", status);
 			}
-			count &= AMBARELLA_DMA_MAX_LENGTH;
-			rmb(); /* ensure Descriptor Address is read after Status */
 
-			if (likely(desc_phys == readl(dma_chan_da_reg(amb_chan))))
+			if (amb_desc == ambdma_get_current_desc(amb_chan, NULL))
 				break;
 		}
-
-		if (first->lli->attr & DMA_DESC_EOC) {
-			if(count > first->lli->xfr_count) {
-				if(ktime_after(ktime_get(), timeout))
-					WARN_ON(ktime_after(ktime_get(), timeout));
-				else
-					goto again;
-			}
+#if 0
+		if (trials > 0 || (status & AMBARELLA_DMA_MAX_LENGTH) > first->lli->xfr_count) {
+			writel(0, dma_chan_sta_reg(amb_chan));
+			//printk(KERN_DEBUG "trials = %d\n", trials);
 		}
+#endif
 
-		if (unlikely(trials >= AMBARELLA_MAX_DESC_TRIALS)) {
-			spin_unlock_irqrestore(&amb_chan->lock, flags);
-			return -ETIMEDOUT;
-		}
+		WARN_ONCE(trials >= AMBARELLA_MAX_DESC_TRIALS, "trials = %d\n", trials);
 
-		if (desc_phys != first->txd.phys) {
-			count += first->lli->xfr_count;
+		count = min_t(size_t, amb_desc->index * first->lli->xfr_count, first->total_len);
+		count += status & AMBARELLA_DMA_MAX_LENGTH;
 
-			if (!list_empty(&first->tx_list)) {
-				list_for_each_entry(amb_desc, &first->tx_list, desc_node) {
-					if (desc_phys == amb_desc->txd.phys)
-						break;
-
-					count += amb_desc->lli->xfr_count;
-				}
-
-			}
-		} else {
-			count += first->total_len;
-		}
-
-		/*
-		 * Note:
-		 *
-		 * 1) sometimes it's failed to find desc_phys from the
-		 * descpritor list, in this case, amb_desc is invalid
-		 * pointer.
-		 *
-		 * 2) the descriptor in DA register is not the current
-		 * working descriptor, it's actually the descriptor next
-		 * to current working descriptor.
-		 */
-		if (desc_phys == amb_desc->txd.phys)
-			count -= amb_desc->lli->xfr_count;
-		else
-			count -= first->lli->xfr_count;
-
-		count += first->total_len;
-		count %= first->total_len;
 	} else if (!list_empty(&amb_chan->queue_list)) {
 		/*
 		 * If it's in queue_list, all of the desc have not been started,
@@ -954,7 +981,7 @@ static struct dma_async_tx_descriptor *ambdma_prep_dma_cyclic(
 {
 	struct ambdma_chan *amb_chan = to_ambdma_chan(chan);
 	struct ambdma_desc *amb_desc, *first = NULL, *prev = NULL;
-	int left_len = buf_len;
+	int left_len = buf_len, index = 0;
 
 	if (buf_len == 0 || period_len == 0) {
 		pr_err("%s: buf/period length is zero!\n", __func__);
@@ -967,6 +994,7 @@ static struct dma_async_tx_descriptor *ambdma_prep_dma_cyclic(
 			goto dma_cyclic_err;
 
 		amb_desc->is_cyclic = 1;
+		amb_desc->index = index++;
 
 		if (period_len > left_len)
 			period_len = left_len;
@@ -1036,7 +1064,7 @@ static struct dma_async_tx_descriptor *ambdma_prep_slave_sg(
 	struct ambdma_desc *amb_desc, *first = NULL, *prev = NULL;
 	struct scatterlist *sgent;
 	size_t total_len = 0;
-	unsigned i = 0;
+	unsigned i = 0, index = 0;
 
 	if (sg_len == 0) {
 		pr_err("%s: sg length is zero!\n", __func__);
@@ -1049,6 +1077,7 @@ static struct dma_async_tx_descriptor *ambdma_prep_slave_sg(
 			goto slave_sg_err;
 
 		amb_desc->is_cyclic = 0;
+		amb_desc->index = index++;
 
 		if (direction == DMA_MEM_TO_DEV) {
 			amb_desc->lli->src = sg_dma_address(sgent);
@@ -1085,6 +1114,13 @@ static struct dma_async_tx_descriptor *ambdma_prep_slave_sg(
 		BUG_ON(amb_desc->lli->xfr_count > AMBARELLA_DMA_MAX_LENGTH);
 	}
 
+	/*
+	 * Lets make a cyclic list.
+	 * Note: it doesn't really take effects on hardware, but only used
+	 * by software to identify which descriptor is current running.
+	 */
+	amb_desc->lli->next_desc = first->txd.phys;
+
 	/* set EOC flag to specify the last descriptor */
 	amb_desc->lli->attr |= DMA_DESC_EOC;
 
@@ -1108,6 +1144,7 @@ static struct dma_async_tx_descriptor *ambdma_prep_dma_memcpy(
 	struct ambdma_chan *amb_chan = to_ambdma_chan(chan);
 	struct ambdma_desc *amb_desc = NULL, *first = NULL, *prev = NULL;
 	size_t left_len = len, xfer_count;
+	int index = 0;
 
 	if (unlikely(!len)) {
 		pr_info("%s: length is zero!\n", __func__);
@@ -1120,6 +1157,7 @@ static struct dma_async_tx_descriptor *ambdma_prep_dma_memcpy(
 			goto dma_memcpy_err;
 
 		amb_desc->is_cyclic = 0;
+		amb_desc->index = index++;
 
 		amb_desc->lli->src = src;
 		amb_desc->lli->dst = dst;
@@ -1147,6 +1185,13 @@ static struct dma_async_tx_descriptor *ambdma_prep_dma_memcpy(
 		left_len -= xfer_count;
 
 	} while (left_len > 0);
+
+	/*
+	 * Lets make a cyclic list.
+	 * Note: it doesn't really take effects on hardware, but only used
+	 * by software to identify which descriptor is current running.
+	 */
+	amb_desc->lli->next_desc = first->txd.phys;
 
 	/* set EOC flag to specify the last descriptor */
 	amb_desc->lli->attr |= DMA_DESC_EOC;

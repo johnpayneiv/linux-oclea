@@ -21,6 +21,7 @@ config ARCH_AMBARELLA
 	select RATIONAL
 	select POWER_RESET_AMBARELLA
 	select ARCH_SUPPORTS_RT
+	select SOC_BUS
 	help
 	  This enables support for Ambarella ARMv8 SoC Family
 
