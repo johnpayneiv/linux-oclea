@@ -109,3 +109,4 @@ void m_can_config_endisable(struct m_can_classdev *priv, bool enable);
 int m_can_class_suspend(struct device *dev);
 int m_can_class_resume(struct device *dev);
 #endif	/* _CAN_M_H_ */
+
