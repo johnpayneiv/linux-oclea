@@ -45,6 +45,8 @@
 #define	AMBARELLA_SPI_MAX_XFER_PER_MSG		32
 #define	AMBARELLA_SPI_MAX_CS_NUM			8
 
+#define SPI_DMA_TIMEOUT				(msecs_to_jiffies(3000))
+
 struct ambarella_spi {
 	struct device			*dev;
 	struct dma_chan		*tx_dma_chan;
@@ -73,6 +75,7 @@ struct ambarella_spi {
 	int					cs_active;
 	int					rw;
 	int					irq;
+	struct completion 			tx_dma_complete;
 };
 
 static void ambarella_spi_next_transfer(void *args);
@@ -191,6 +194,13 @@ static void ambarella_spi_prepare_transfer(struct ambarella_spi *bus)
 	writel_relaxed(1, bus->virt + SPI_SSIENR_OFFSET);
 }
 
+static void ambarella_spi_tx_dma_callback(void *arg)
+{
+	struct ambarella_spi *bus = arg;
+
+	complete(&bus->tx_dma_complete);
+}
+
 static void ambarella_spi_start_transfer(struct ambarella_spi *bus)
 {
 	struct spi_device *spi;
@@ -200,6 +210,7 @@ static void ambarella_spi_start_transfer(struct ambarella_spi *bus)
 	u32 len, widx, ridx, xfer_len, i;
 	void *wbuf, *rbuf;
 	u16 tmp;
+	int ret;
 
 	xfer = bus->transfers[bus->xfer_id];
 	spi = bus->msg->spi;
@@ -284,11 +295,22 @@ static void ambarella_spi_start_transfer(struct ambarella_spi *bus)
 			DMA_MEM_TO_DEV, DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
 		BUG_ON (!txd);
 
-		txd->callback		= NULL;
-		txd->callback_param	= NULL;
+		txd->callback		= ambarella_spi_tx_dma_callback;
+		txd->callback_param	= bus;
+
+		reinit_completion(&bus->tx_dma_complete);
 
 		dmaengine_submit(txd);
 		dma_async_issue_pending(bus->tx_dma_chan);
+
+		ret = wait_for_completion_timeout(&bus->tx_dma_complete,
+						SPI_DMA_TIMEOUT));
+		if (ret == 0) {
+			dev_err(bus->dev, "SPI Transfer timeout, err %d\n", ret);
+			dmaengine_terminate_all(bus->tx_dma_chan);
+		}
+
+
 	} else {
 		bus->widx = widx;
 		enable_irq(bus->irq);
@@ -628,6 +650,8 @@ static int ambarella_spi_probe(struct platform_device *pdev)
 	bus->virt = reg;
 	bus->irq = irq;
 	bus->dev = &pdev->dev;
+
+	init_completion(&bus->tx_dma_complete);
 
 	for (i = 0; i < AMBARELLA_SPI_MAX_CS_NUM; i++)
 		bus->cs_pins[i] = -1;
