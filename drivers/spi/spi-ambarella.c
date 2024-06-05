@@ -303,13 +303,14 @@ static void ambarella_spi_start_transfer(struct ambarella_spi *bus)
 		dmaengine_submit(txd);
 		dma_async_issue_pending(bus->tx_dma_chan);
 
-		ret = wait_for_completion_timeout(&bus->tx_dma_complete,
-						SPI_DMA_TIMEOUT);
-		if (ret == 0) {
-			dev_err(bus->dev, "SPI Transfer timeout, err %d\n", ret);
-			dmaengine_terminate_all(bus->tx_dma_chan);
+		if (!strcmp(dev_name(bus->dev), "e0014000.spi")) {
+			ret = wait_for_completion_timeout(&bus->tx_dma_complete,
+							SPI_DMA_TIMEOUT);
+			if (ret == 0) {
+				dev_err(bus->dev, "SPI Transfer timeout, err %d\n", ret);
+				dmaengine_terminate_all(bus->tx_dma_chan);
+			}
 		}
-
 
 	} else {
 		bus->widx = widx;
