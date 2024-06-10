@@ -2514,6 +2514,7 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 
 			/* sanity check */
 			hw_intf = readl(lp->regbase + ETH_DMA_HWFEA_OFFSET);
+			dev_err(dev, "Sanity check ETH_DMA_HWFEA_OFFSET: 0x%x\n", hw_intf);							
 			hw_intf &= ETH_DMA_HWFEA_ACTPHYIF_MASK;
 			if (hw_intf != ETH_DMA_HWFEA_ACTPHYIF_RGMII) {
 				dev_err(dev, "Sanity check error: 0x%x:0x%x\n", hw_intf, lp->intf_type);
@@ -2532,6 +2533,8 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 
 				/* sanity check */
 				hw_intf = readl(lp->regbase + ETH_DMA_HWFEA_OFFSET);
+
+				dev_err(dev, "Sanity check ETH_DMA_HWFEA_OFFSET: 0x%x\n", hw_intf);				
 				hw_intf &= ETH_DMA_HWFEA_ACTPHYIF_MASK;
 				if (hw_intf != ETH_DMA_HWFEA_ACTPHYIF_RMII) {
 					dev_err(dev, "Sanity check error: 0x%x:0x%x\n", hw_intf, lp->intf_type);
@@ -2699,7 +2702,7 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 		lp->phydev = of_phy_find_device(mdio_np->child);
 
 		if(!lp->phydev) {
-			dev_err(&pdev->dev, "Failed to get phydev from mdio_gpio device node\n");
+			dev_err(&pdev->dev, "Failed to get phydev from mdio_gpio device node %s\n", mdio_np->child);
 			goto ambeth_drv_probe_free_netdev;
 		}
 
