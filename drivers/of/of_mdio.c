@@ -303,8 +303,10 @@ struct phy_device *of_phy_find_device(struct device_node *phy_np)
 		return NULL;
 
 	d = bus_find_device_by_of_node(&mdio_bus_type, phy_np);
+	printk("DEBUG: Device %s\n",&mdio_bus_type->name);
 	if (d) {
 		mdiodev = to_mdio_device(d);
+		printk("DEBUG: mdiodev->flags %i\n",mdiodev->flags);
 		if (mdiodev->flags & MDIO_DEVICE_FLAG_PHY)
 			return to_phy_device(d);
 		put_device(d);
