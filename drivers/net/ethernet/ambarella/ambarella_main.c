@@ -2719,7 +2719,7 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 		if (of_phy_is_fixed_link(np)) {
 			ret_val = of_phy_register_fixed_link(np);
 			if (ret_val < 0) {
-				netif_err(ag, probe, ndev, "Failed to register fixed PHY link: %d\n",ret_val);
+				dev_err(&pdev->dev, "Failed to register fixed PHY link: %d\n",ret_val);
 				goto ambeth_drv_probe_free_netdev;
 			}
 
