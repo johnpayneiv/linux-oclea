@@ -2728,8 +2728,7 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 			phy_node = of_parse_phandle(np, "phy-handle", 0);
 		}
 		lp->phydev = of_phy_find_device(phy_node);
-		printk("eth: phy speed %s\n",lp->phydev->speed);
-
+		printk("eth: phy speed %i\n",lp->phydev->speed);
 
 	} else {
 		printk("eth: Ambarella MDIO Bus\n");
