@@ -51,8 +51,6 @@
 #include <linux/regmap.h>
 #include <linux/mfd/syscon.h>
 
-#include <linux/fixed_phy.h>
-
 #include "ambarella_eth.h"
 
 /*--------------------------------------------------------------------------*/
