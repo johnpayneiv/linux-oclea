@@ -2622,6 +2622,7 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 	struct resource *res;
 	const char *macaddr;
 	int ret_val = 0;
+	bool fixed_link = false;
 
 	ndev = alloc_etherdev(sizeof(struct ambeth_info));
 	if (ndev == NULL) {
@@ -2721,16 +2722,17 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 		}
 		/* check if a fixed-link is defined in device-tree */
 		if (of_phy_is_fixed_link(mdio_np)) {
-			rc = of_phy_register_fixed_link(mdio_np);
-			if (rc < 0) {
-				netdev_err(dev, "cannot register fixed PHY\n");
-				return rc;
+			ret_val = of_phy_register_fixed_link(mdio_np);
+			if (ret_val < 0) {
+				netdev_err(ndev, "cannot register fixed PHY\n");
+				goto ambeth_drv_probe_free_netdev;
+				//return ret_val;
 			}
 
 			/* In the case of a fixed PHY, the DT node associated
 			 * to the PHY is the Ethernet MAC DT node.
 			 */
-			lp->phydev = of_node_get(mdio_np);
+			//lp->phydev = of_node_get(mdio_np);
 			fixed_link = true;
 
 			netdev_dbg(ndev, "fixed-link detected\n");
