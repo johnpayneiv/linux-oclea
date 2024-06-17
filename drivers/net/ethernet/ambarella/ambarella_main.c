@@ -2715,22 +2715,24 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 		lp->new_bus = *lp->phydev->mdio.bus;
 
 	} else if(lp->fixed_mdio) {
-
+		printk("eth: fixed_mdio \n");
 		if (of_phy_is_fixed_link(np)) {
 			ret_val = of_phy_register_fixed_link(np);
 			if (ret_val < 0) {
 				dev_err(&pdev->dev, "Failed to register fixed PHY link: %d\n",ret_val);
 				goto ambeth_drv_probe_free_netdev;
 			}
-
 			phy_node = of_node_get(np);
+			printk("eth: phy name %s\n",phy_node->full_name);
 		} else {
 			phy_node = of_parse_phandle(np, "phy-handle", 0);
 		}
 		lp->phydev = of_phy_find_device(phy_node);
+		printk("eth: phy speed %s\n",lp->phydev->speed);
 
 
 	} else {
+		printk("eth: Ambarella MDIO Bus\n");
 		bus = devm_mdiobus_alloc_size(&pdev->dev, sizeof(struct ambeth_info));
 		if (!bus) {
 			ret_val = -ENOMEM;
