@@ -189,7 +189,8 @@ struct ambeth_info {
 					dump_rx_free : 1,
 					ahb_mdio_clk_div: 4,
 					loopback:1,
-					dump_rx_all : 1;
+					dump_rx_all : 1,
+					fixed_mdio: 1;
 
 };
 

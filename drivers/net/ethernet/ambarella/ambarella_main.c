@@ -51,6 +51,8 @@
 #include <linux/regmap.h>
 #include <linux/mfd/syscon.h>
 
+#include <linux/fixed_phy.h>
+
 #include "ambarella_eth.h"
 
 /*--------------------------------------------------------------------------*/
@@ -2593,6 +2595,8 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 	lp->dump_rx_all = of_property_read_bool(np, "amb,dump-rx-all");
 	lp->enhance = !!of_find_property(np, "amb,enhance", NULL);
 	lp->mdio_gpio = !!of_find_property(np, "amb,mdio-gpio", NULL);
+	lp->fixed_mdio = !!of_find_property(np, "amb,fixed-mdio", NULL);
+
 
 	lp->tx_clk_invert = !!of_find_property(np, "amb,tx-clk-invert", NULL);
 	if (!lp->op->set_clock && lp->tx_clk_invert)
@@ -2709,6 +2713,34 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 		}
 
 		lp->new_bus = *lp->phydev->mdio.bus;
+
+	} else if(lp->fixed_mdio) {
+		mdio_np = of_find_compatible_node(NULL, NULL, "fixed-mdio");
+
+		if(mdio_np == NULL) {
+			dev_err(&pdev->dev, "Failed to get mdio_gpio device node\n");
+			goto ambeth_drv_probe_free_netdev;
+		}
+		/* check if a fixed-link is defined in device-tree */
+		if (of_phy_is_fixed_link(mdio_np)) {
+			rc = of_phy_register_fixed_link(mdio_np);
+			if (rc < 0) {
+				netdev_err(dev, "cannot register fixed PHY\n");
+				return rc;
+			}
+
+			/* In the case of a fixed PHY, the DT node associated
+			 * to the PHY is the Ethernet MAC DT node.
+			 */
+			lp->phydev = of_node_get(mdio_np);
+			fixed_link = true;
+
+			netdev_dbg(ndev, "fixed-link detected\n");
+			// lp->phydev = of_phy_connect(ndev, lp->phydev,
+			// 			&altera_tse_adjust_link,
+			// 			0, priv->phy_iface);
+		}
+
 	} else {
 		bus = devm_mdiobus_alloc_size(&pdev->dev, sizeof(struct ambeth_info));
 		if (!bus) {
