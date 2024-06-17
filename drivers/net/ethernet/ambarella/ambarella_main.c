@@ -2615,6 +2615,7 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 static int ambeth_drv_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node, *mdio_np = NULL;
+	struct device_node *phy_node;
 	const struct ambeth_gmac_op *data;
 	struct net_device *ndev;
 	struct mii_bus *bus;
@@ -2714,32 +2715,20 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 		lp->new_bus = *lp->phydev->mdio.bus;
 
 	} else if(lp->fixed_mdio) {
-		mdio_np = of_find_compatible_node(NULL, NULL, "fixed-mdio");
 
-		if(mdio_np == NULL) {
-			dev_err(&pdev->dev, "Failed to get mdio_gpio device node\n");
-			goto ambeth_drv_probe_free_netdev;
-		}
-		/* check if a fixed-link is defined in device-tree */
-		if (of_phy_is_fixed_link(mdio_np)) {
-			ret_val = of_phy_register_fixed_link(mdio_np);
+		if (of_phy_is_fixed_link(np)) {
+			ret_val = of_phy_register_fixed_link(np);
 			if (ret_val < 0) {
-				netdev_err(ndev, "cannot register fixed PHY\n");
+				netif_err(ag, probe, ndev, "Failed to register fixed PHY link: %d\n",ret_val);
 				goto ambeth_drv_probe_free_netdev;
-				//return ret_val;
 			}
 
-			/* In the case of a fixed PHY, the DT node associated
-			 * to the PHY is the Ethernet MAC DT node.
-			 */
-			//lp->phydev = of_node_get(mdio_np);
-			fixed_link = true;
-
-			netdev_dbg(ndev, "fixed-link detected\n");
-			// lp->phydev = of_phy_connect(ndev, lp->phydev,
-			// 			&altera_tse_adjust_link,
-			// 			0, priv->phy_iface);
+			phy_node = of_node_get(np);
+		} else {
+			phy_node = of_parse_phandle(np, "phy-handle", 0);
 		}
+		lp->phydev = of_phy_find_device(phy_node);
+
 
 	} else {
 		bus = devm_mdiobus_alloc_size(&pdev->dev, sizeof(struct ambeth_info));
