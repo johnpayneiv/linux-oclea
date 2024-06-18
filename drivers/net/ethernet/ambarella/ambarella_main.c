@@ -2718,30 +2718,26 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 	} else if(lp->fixed_mdio) {
 		printk("eth: fixed_mdio \n");
 
-
 		// reference ravb_main.c
-		/* Try connecting to PHY */
-		pn = of_parse_phandle(np, "phy-handle", 0);
-		if (!pn) {
-			/* In the case of a fixed PHY, the DT node associated
-			* to the PHY is the Ethernet MAC DT node.
-			*/
-			printk("eth: not phandle\n");
-			if (of_phy_is_fixed_link(np)) {
-				ret_val = of_phy_register_fixed_link(np);
-				if (ret_val) {
-					printk("eth:of_phy_register_fixed_link: %i\n", ret_val);
-					of_phy_deregister_fixed_link(np);
-					goto ambeth_drv_probe_free_netdev;
-				}
+		/* In the case of a fixed PHY, the DT node associated
+		* to the PHY is the Ethernet MAC DT node.
+		*/
+		printk("eth: not phandle\n");
+		if (of_phy_is_fixed_link(np)) {
+			ret_val = of_phy_register_fixed_link(np);
+			if (ret_val) {
+				printk("eth:of_phy_register_fixed_link: %i\n", ret_val);
+				of_phy_deregister_fixed_link(np);
+				goto ambeth_drv_probe_free_netdev;
 			}
-			pn = of_node_get(np);
-			printk("eth: of_node_get %s\n", pn->full_name);			
 		}
+		pn = of_node_get(np);
+		printk("eth: of_node_get %s\n", pn->full_name);			
 		lp->phydev = of_phy_connect(ndev, pn, ambeth_adjust_link, 0,
-					PHY_INTERFACE_MODE_GMII);
+					of_get_phy_mode(np));
+					//PHY_INTERFACE_MODE_RGMII);
 					//priv->phy_interface);
-		printk("eth: speed: %i",lp->phydev->speed);
+		printk("eth: speed: %i, phy mode: %i\n",lp->phydev->speed, of_get_phy_mode(np));
 		of_node_put(pn);
 		if (!lp->phydev) {
 			netdev_err(ndev, "failed to connect PHY\n");
