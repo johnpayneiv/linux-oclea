@@ -303,9 +303,9 @@ struct phy_device *of_phy_find_device(struct device_node *phy_np)
 		return NULL;
 
 	d = bus_find_device_by_of_node(&mdio_bus_type, phy_np);
-	printk("of_phy_find_device '%s' driver '%s'\n", d->init_name, d->driver->name);
 
 	if (d) {
+		printk("of_phy_find_device '%s' driver '%s'\n", d->init_name, d->driver->name);
 		mdiodev = to_mdio_device(d);
 		if (mdiodev->flags & MDIO_DEVICE_FLAG_PHY)
 			return to_phy_device(d);
