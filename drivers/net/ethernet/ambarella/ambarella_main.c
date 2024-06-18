@@ -2616,6 +2616,7 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node, *mdio_np = NULL;
 	struct device_node *phy_node;
+	struct device_node *pn;
 	const struct ambeth_gmac_op *data;
 	struct net_device *ndev;
 	struct mii_bus *bus;
@@ -2716,25 +2717,35 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 
 	} else if(lp->fixed_mdio) {
 		printk("eth: fixed_mdio \n");
-		if (of_phy_is_fixed_link(np)) {
-			ret_val = of_phy_register_fixed_link(np);
-			if (ret_val < 0) {
-				dev_err(&pdev->dev, "Failed to register fixed PHY link: %d\n",ret_val);
-				goto ambeth_drv_probe_free_netdev;
-			}
-			phy_node = of_find_compatible_node(NULL, NULL, "fixed-link");
-			//phy_node = of_node_get(np);
-			printk("eth: phy name %s\n",phy_node->full_name);
-			printk("eth: phy child name %s\n",phy_node->child->full_name);
-		} else {
-			phy_node = of_parse_phandle(np, "phy-handle", 0);
-		}
-		lp->phydev = of_phy_find_device(phy_node);
 
-		if(lp->phydev)
-			printk("eth: phy speed %i\n",lp->phydev->speed);
-		else
-			printk("eth: lp->phydev NULL\n");
+
+		// reference ravb_main.c
+		/* Try connecting to PHY */
+		pn = of_parse_phandle(np, "phy-handle", 0);
+		if (!pn) {
+			/* In the case of a fixed PHY, the DT node associated
+			* to the PHY is the Ethernet MAC DT node.
+			*/
+			printk("eth: not phandle\n");
+			if (of_phy_is_fixed_link(np)) {
+				ret_val = of_phy_register_fixed_link(np);
+				if (ret_val)
+					of_phy_deregister_fixed_link(np);
+					goto ambeth_drv_probe_free_netdev;
+			}
+			pn = of_node_get(np);
+			printk("eth: of_node_get %s\n", pn->full_name);			
+		}
+		lp->phydev = of_phy_connect(ndev, pn, ambeth_adjust_link, 0,
+					PHY_INTERFACE_MODE_GMII);
+					//priv->phy_interface);
+		of_node_put(pn);
+		if (!lp->phydev) {
+			netdev_err(ndev, "failed to connect PHY\n");
+			of_phy_deregister_fixed_link(np);
+			goto ambeth_drv_probe_free_netdev;
+		}
+
 	} else {
 		printk("eth: Ambarella MDIO Bus\n");
 		bus = devm_mdiobus_alloc_size(&pdev->dev, sizeof(struct ambeth_info));
