@@ -2741,13 +2741,14 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 		lp->phydev = of_phy_connect(ndev, pn, ambeth_adjust_link, 0,
 					PHY_INTERFACE_MODE_GMII);
 					//priv->phy_interface);
+		printk("eth: speed: %i",lp->phydev->speed);
 		of_node_put(pn);
 		if (!lp->phydev) {
 			netdev_err(ndev, "failed to connect PHY\n");
 			of_phy_deregister_fixed_link(np);
 			goto ambeth_drv_probe_free_netdev;
 		}
-
+		printk("eth: end");			
 	} else {
 		printk("eth: Ambarella MDIO Bus\n");
 		bus = devm_mdiobus_alloc_size(&pdev->dev, sizeof(struct ambeth_info));
