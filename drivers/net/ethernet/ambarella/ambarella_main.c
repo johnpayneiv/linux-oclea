@@ -2728,10 +2728,12 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 			*/
 			printk("eth: not phandle\n");
 			if (of_phy_is_fixed_link(np)) {
-				ret_val = of_phy_register_fixed_link(np);
-				if (ret_val)
+				ret_val = of_phy_register_fixed_link(np)
+				if (ret_val) {
+					printk("eth:of_phy_register_fixed_link: %i\n", ret_val);
 					of_phy_deregister_fixed_link(np);
 					goto ambeth_drv_probe_free_netdev;
+				}
 			}
 			pn = of_node_get(np);
 			printk("eth: of_node_get %s\n", pn->full_name);			
