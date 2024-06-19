@@ -2842,6 +2842,7 @@ static int ambeth_drv_remove(struct platform_device *pdev)
 
 	ambeth_ptp_exit(lp);
 	unregister_netdev(ndev);
+	of_phy_deregister_fixed_link(pdev->dev.of_node);
 	netif_napi_del(&lp->napi);
 	mdiobus_unregister(&lp->new_bus);
 	platform_set_drvdata(pdev, NULL);
