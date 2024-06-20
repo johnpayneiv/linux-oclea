@@ -2838,10 +2838,18 @@ static int ambeth_drv_remove(struct platform_device *pdev)
 	unregister_netdev(ndev);
 
 	netif_napi_del(&lp->napi);
-	if (of_phy_is_fixed_link(pdev->dev.of_node))
-		of_phy_deregister_fixed_link(pdev->dev.of_node);
-	else
+
+	if (ndev->phydev) {
+		phy_disconnect(ndev->phydev);
+
+		if (of_phy_is_fixed_link(pdev->dev.of_node)) {
+			of_phy_deregister_fixed_link(pdev->dev.of_node);
+			dev_notice(&pdev->dev, "eth: unregister phy.\n");
+		}
+	} else {
 		mdiobus_unregister(&lp->new_bus);
+		dev_notice(&pdev->dev, "eth: mdio unregister phy.\n");
+	}
 	platform_set_drvdata(pdev, NULL);
 	free_netdev(ndev);
 	dev_notice(&pdev->dev, "Removed.\n");
