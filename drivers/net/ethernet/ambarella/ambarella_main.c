@@ -661,11 +661,7 @@ ambhw_mdio_write_exit:
 
 static void ambeth_phy_init(struct ambeth_info *priv)
 {
-	struct net_device *ndev = priv->ndev;
-	struct device_node *np = ndev->dev.parent->of_node;
-	struct device_node *pn;
-	int ret_val = 0;
-	
+
 	if (gpio_is_valid(priv->pwr_gpio)) {
 		gpio_direction_output(priv->pwr_gpio, !priv->pwr_gpio_active);
 		msleep(20);
@@ -2597,7 +2593,7 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 	lp->dump_rx_all = of_property_read_bool(np, "amb,dump-rx-all");
 	lp->enhance = !!of_find_property(np, "amb,enhance", NULL);
 	lp->mdio_gpio = !!of_find_property(np, "amb,mdio-gpio", NULL);
-	lp->fixed_mdio = !!of_find_property(np, "amb,fixed-mdio", NULL);
+	//lp->fixed_mdio = !!of_find_property(np, "amb,fixed-mdio", NULL);
 
 
 	lp->tx_clk_invert = !!of_find_property(np, "amb,tx-clk-invert", NULL);
@@ -2619,8 +2615,8 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 static int ambeth_drv_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node, *mdio_np = NULL;
-	//struct device_node *phy_node;
-	//struct device_node *pn;
+	struct device_node *phy_node;
+	struct device_node *pn;
 	const struct ambeth_gmac_op *data;
 	struct net_device *ndev;
 	struct mii_bus *bus;
@@ -2709,7 +2705,6 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 			of_phy_deregister_fixed_link(np);
 			goto ambeth_drv_probe_free_netdev;
 		}
-		fixed-link = true;
 		pn = of_node_get(np);
 		printk("eth: of_node_get %s\n", pn->full_name);
 		lp->phydev = of_phy_connect(ndev, pn, &ambeth_adjust_link, 0,
