@@ -2653,8 +2653,8 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 static int ambeth_drv_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node, *mdio_np = NULL;
-	struct device_node *phy_node;
-	struct device_node *pn;
+	//struct device_node *phy_node;
+	//struct device_node *pn;
 	const struct ambeth_gmac_op *data;
 	struct net_device *ndev;
 	struct mii_bus *bus;
@@ -2662,7 +2662,7 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 	struct resource *res;
 	const char *macaddr;
 	int ret_val = 0;
-	bool fixed_link = false;
+	//bool fixed_link = false;
 
 	ndev = alloc_etherdev(sizeof(struct ambeth_info));
 	if (ndev == NULL) {

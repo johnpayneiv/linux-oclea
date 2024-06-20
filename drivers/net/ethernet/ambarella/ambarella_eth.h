@@ -260,4 +260,5 @@ void ambeth_get_strings(struct net_device *netdev, u32 stringset, u8 *data);
 void ambeth_get_ethtool_stats(struct net_device *netdev,
 	struct ethtool_stats *stats, u64 *data);
 void ambeth_interrupt_statis(struct ambeth_info *priv, u32 irq_status);
+static void ambeth_adjust_link(struct net_device *ndev);
 #endif
