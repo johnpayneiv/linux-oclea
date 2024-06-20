@@ -2615,7 +2615,7 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 static int ambeth_drv_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node, *mdio_np = NULL;
-	struct device_node *phy_node;
+	//struct device_node *phy_node;
 	struct device_node *pn;
 	const struct ambeth_gmac_op *data;
 	struct net_device *ndev;
@@ -2840,7 +2840,7 @@ static int ambeth_drv_remove(struct platform_device *pdev)
 	netif_napi_del(&lp->napi);
 	if (of_phy_is_fixed_link(pdev->dev.of_node))
 		of_phy_deregister_fixed_link(pdev->dev.of_node);
-	if(!lp->new_bus)
+	else
 		mdiobus_unregister(&lp->new_bus);
 	platform_set_drvdata(pdev, NULL);
 	free_netdev(ndev);
