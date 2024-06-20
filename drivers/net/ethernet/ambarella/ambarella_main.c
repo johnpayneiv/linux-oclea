@@ -2720,7 +2720,7 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 		   lp->phydev->mdio.addr, lp->phydev->phy_id, lp->phydev->link);
 		printk("eth: end fixed phy");	
 	}
-	else (lp->mdio_gpio){
+	else if (lp->mdio_gpio){
 		mdio_np = of_find_compatible_node(NULL, NULL, "virtual,mdio-gpio");
 
 		if(mdio_np == NULL) {
@@ -2840,7 +2840,7 @@ static int ambeth_drv_remove(struct platform_device *pdev)
 	netif_napi_del(&lp->napi);
 	if (of_phy_is_fixed_link(pdev->dev.of_node))
 		of_phy_deregister_fixed_link(pdev->dev.of_node);
-	if(lp->new_bus != NULL)
+	if(!lp->new_bus)
 		mdiobus_unregister(&lp->new_bus);
 	platform_set_drvdata(pdev, NULL);
 	free_netdev(ndev);
