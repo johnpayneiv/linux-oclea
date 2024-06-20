@@ -661,6 +661,11 @@ ambhw_mdio_write_exit:
 
 static void ambeth_phy_init(struct ambeth_info *priv)
 {
+	struct net_device *ndev = priv->ndev;
+	struct device_node *np = ndev->dev.parent->of_node;
+	struct device_node *pn;
+	int ret_val = 0;
+	
 	if (gpio_is_valid(priv->pwr_gpio)) {
 		gpio_direction_output(priv->pwr_gpio, !priv->pwr_gpio_active);
 		msleep(20);
@@ -673,7 +678,40 @@ static void ambeth_phy_init(struct ambeth_info *priv)
 		msleep(priv->rst_gpio_delay);
 		gpio_direction_output(priv->rst_gpio, !priv->rst_gpio_active);
 		msleep(priv->rst_gpio_delay);
+	}
+	
+	if(priv->fixed_mdio) {
+		printk("eth: fixed_mdio \n");
 
+		// reference ravb_main.c
+		/* In the case of a fixed PHY, the DT node associated
+		* to the PHY is the Ethernet MAC DT node.
+		*/
+		printk("eth: not phandle\n");
+		if (of_phy_is_fixed_link(np)) {
+			ret_val = of_phy_register_fixed_link(np);
+			if (ret_val) {
+				printk("eth:of_phy_register_fixed_link: %i\n", ret_val);
+				of_phy_deregister_fixed_link(np);
+				return;
+				//goto ambeth_drv_probe_free_netdev;
+			}
+		}
+		pn = of_node_get(np);
+		printk("eth: of_node_get %s\n", pn->full_name);			
+		priv->phydev = of_phy_connect(ndev, pn, ambeth_adjust_link, 0,
+					of_get_phy_mode(np));
+					//PHY_INTERFACE_MODE_RGMII);
+					//priv->phy_interface);
+		printk("eth: speed: %i, phy mode: %i\n",priv->phydev->speed, of_get_phy_mode(np));
+		of_node_put(pn);
+		if (!priv->phydev) {
+			netdev_err(ndev, "failed to connect PHY\n");
+			of_phy_deregister_fixed_link(np);
+			//goto ambeth_drv_probe_free_netdev;
+			return;
+		}
+		printk("eth: end");			
 	}
 }
 
@@ -2715,36 +2753,6 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 
 		lp->new_bus = *lp->phydev->mdio.bus;
 
-	} else if(lp->fixed_mdio) {
-		printk("eth: fixed_mdio \n");
-
-		// reference ravb_main.c
-		/* In the case of a fixed PHY, the DT node associated
-		* to the PHY is the Ethernet MAC DT node.
-		*/
-		printk("eth: not phandle\n");
-		if (of_phy_is_fixed_link(np)) {
-			ret_val = of_phy_register_fixed_link(np);
-			if (ret_val) {
-				printk("eth:of_phy_register_fixed_link: %i\n", ret_val);
-				of_phy_deregister_fixed_link(np);
-				goto ambeth_drv_probe_free_netdev;
-			}
-		}
-		pn = of_node_get(np);
-		printk("eth: of_node_get %s\n", pn->full_name);			
-		lp->phydev = of_phy_connect(ndev, pn, ambeth_adjust_link, 0,
-					of_get_phy_mode(np));
-					//PHY_INTERFACE_MODE_RGMII);
-					//priv->phy_interface);
-		printk("eth: speed: %i, phy mode: %i\n",lp->phydev->speed, of_get_phy_mode(np));
-		of_node_put(pn);
-		if (!lp->phydev) {
-			netdev_err(ndev, "failed to connect PHY\n");
-			of_phy_deregister_fixed_link(np);
-			goto ambeth_drv_probe_free_netdev;
-		}
-		printk("eth: end");			
 	} else {
 		printk("eth: Ambarella MDIO Bus\n");
 		bus = devm_mdiobus_alloc_size(&pdev->dev, sizeof(struct ambeth_info));
@@ -2776,13 +2784,15 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "of_mdiobus_register fail%d.\n", ret_val);
 			goto ambeth_drv_probe_free_netdev;
 		}
-
-		/* Detect the PHY */
-		lp->phydev = phy_find_first(&lp->new_bus);
-		if (lp->phydev == NULL) {
-			dev_err(&pdev->dev, "No PHY device.\n");
-			ret_val = -ENODEV;
-			goto ambeth_drv_probe_remove_mdio;
+		
+		if(!lp->fixed_mdio) {
+			/* Detect the PHY */
+			lp->phydev = phy_find_first(&lp->new_bus);
+			if (lp->phydev == NULL) {
+				dev_err(&pdev->dev, "No PHY device.\n");
+				ret_val = -ENODEV;
+				goto ambeth_drv_probe_remove_mdio;
+			}
 		}
 	}
 
