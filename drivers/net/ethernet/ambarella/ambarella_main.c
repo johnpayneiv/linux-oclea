@@ -679,40 +679,6 @@ static void ambeth_phy_init(struct ambeth_info *priv)
 		gpio_direction_output(priv->rst_gpio, !priv->rst_gpio_active);
 		msleep(priv->rst_gpio_delay);
 	}
-	
-	if(priv->fixed_mdio) {
-		printk("eth: fixed_mdio \n");
-
-		// reference ravb_main.c
-		/* In the case of a fixed PHY, the DT node associated
-		* to the PHY is the Ethernet MAC DT node.
-		*/
-		printk("eth: not phandle\n");
-		if (of_phy_is_fixed_link(np)) {
-			ret_val = of_phy_register_fixed_link(np);
-			if (ret_val) {
-				printk("eth:of_phy_register_fixed_link: %i\n", ret_val);
-				of_phy_deregister_fixed_link(np);
-				return;
-				//goto ambeth_drv_probe_free_netdev;
-			}
-		}
-		pn = of_node_get(np);
-		printk("eth: of_node_get %s\n", pn->full_name);			
-		priv->phydev = of_phy_connect(ndev, pn, ambeth_adjust_link, 0,
-					of_get_phy_mode(np));
-					//PHY_INTERFACE_MODE_RGMII);
-					//priv->phy_interface);
-		printk("eth: speed: %i, phy mode: %i\n",priv->phydev->speed, of_get_phy_mode(np));
-		of_node_put(pn);
-		if (!priv->phydev) {
-			netdev_err(ndev, "failed to connect PHY\n");
-			of_phy_deregister_fixed_link(np);
-			//goto ambeth_drv_probe_free_netdev;
-			return;
-		}
-		printk("eth: end");			
-	}
 }
 
 static void ambeth_phy_deinit(struct ambeth_info *priv)
@@ -2734,7 +2700,32 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 	ndev->hw_features = NETIF_F_SG | NETIF_F_IP_CSUM |
 		NETIF_F_IPV6_CSUM | NETIF_F_RXCSUM;
 
-	if(lp->mdio_gpio){
+	if(of_phy_is_fixed_link(np)) { 
+		printk("eth: fixed-link\n");
+		netdev_dbg(ndev, "eth: fixed-link detected\n");		
+		ret_val = of_phy_register_fixed_link(np);
+		if (ret_val) {
+			printk("eth: fixed_link register fail: %i\n", ret_val);
+			of_phy_deregister_fixed_link(np);
+			goto ambeth_drv_probe_free_netdev;
+		}
+		fixed-link = true;
+		pn = of_node_get(np);
+		printk("eth: of_node_get %s\n", pn->full_name);
+		lp->phydev = of_phy_connect(ndev, pn, &ambeth_adjust_link, 0,
+					of_get_phy_mode(np));
+
+		of_node_put(pn);
+		if (!lp->phydev) {
+			netdev_err(ndev, "failed to connect PHY\n");
+			of_phy_deregister_fixed_link(np);
+			goto ambeth_drv_probe_free_netdev;
+		}
+		netdev_dbg(ndev, "eth: attached to PHY %d UID 0x%08x Link = %d\n",
+		   lp->phydev->mdio.addr, lp->phydev->phy_id, lp->phydev->link);
+		printk("eth: end fixed phy");	
+	}
+	else (lp->mdio_gpio){
 		mdio_np = of_find_compatible_node(NULL, NULL, "virtual,mdio-gpio");
 
 		if(mdio_np == NULL) {
@@ -2785,14 +2776,12 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 			goto ambeth_drv_probe_free_netdev;
 		}
 		
-		if(!lp->fixed_mdio) {
-			/* Detect the PHY */
-			lp->phydev = phy_find_first(&lp->new_bus);
-			if (lp->phydev == NULL) {
-				dev_err(&pdev->dev, "No PHY device.\n");
-				ret_val = -ENODEV;
-				goto ambeth_drv_probe_remove_mdio;
-			}
+		/* Detect the PHY */
+		lp->phydev = phy_find_first(&lp->new_bus);
+		if (lp->phydev == NULL) {
+			dev_err(&pdev->dev, "No PHY device.\n");
+			ret_val = -ENODEV;
+			goto ambeth_drv_probe_remove_mdio;
 		}
 	}
 
@@ -2852,9 +2841,12 @@ static int ambeth_drv_remove(struct platform_device *pdev)
 
 	ambeth_ptp_exit(lp);
 	unregister_netdev(ndev);
-	of_phy_deregister_fixed_link(pdev->dev.of_node);
+
 	netif_napi_del(&lp->napi);
-	mdiobus_unregister(&lp->new_bus);
+	if (of_phy_is_fixed_link(pdev->dev.of_node))
+		of_phy_deregister_fixed_link(pdev->dev.of_node);
+	if(lp->new_bus != NULL)
+		mdiobus_unregister(&lp->new_bus);
 	platform_set_drvdata(pdev, NULL);
 	free_netdev(ndev);
 	dev_notice(&pdev->dev, "Removed.\n");
