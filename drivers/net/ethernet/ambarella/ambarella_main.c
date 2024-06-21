@@ -1567,6 +1567,8 @@ static int ambeth_stop(struct net_device *ndev)
 	netif_carrier_off(ndev);
 	phy_stop(lp->phydev);
 	phy_disconnect(lp->phydev);
+	if (of_phy_is_fixed_link(ndev->dev.parent->of_node;)) 
+		of_phy_deregister_fixed_link(ndev->dev.parent->of_node;);	
 	ambeth_phy_stop(lp);
 	ambeth_stop_hw(ndev);
 
@@ -2871,6 +2873,8 @@ static int ambeth_drv_suspend(struct platform_device *pdev, pm_message_t state)
 	if (lp->phydev) {
 		phy_stop(lp->phydev);
 		phy_disconnect(lp->phydev);
+		if (of_phy_is_fixed_link(ndev->dev.parent->of_node;)) 
+			of_phy_deregister_fixed_link(ndev->dev.parent->of_node;);			
 	}
 
 	napi_disable(&lp->napi);
@@ -2966,10 +2970,10 @@ MODULE_DEVICE_TABLE(of, ambarella_eth_dt_ids);
 static struct platform_driver ambeth_driver = {
 	.probe		= ambeth_drv_probe,
 	.remove		= ambeth_drv_remove,
-// #ifdef CONFIG_PM
-// 	.suspend        = ambeth_drv_suspend,
-// 	.resume		= ambeth_drv_resume,
-// #endif
+#ifdef CONFIG_PM
+	.suspend        = ambeth_drv_suspend,
+	.resume		= ambeth_drv_resume,
+#endif
 	.driver = {
 		.name	= "ambarella-eth",
 		.owner	= THIS_MODULE,
