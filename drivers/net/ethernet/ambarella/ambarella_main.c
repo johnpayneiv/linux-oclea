@@ -2716,7 +2716,7 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 			of_phy_deregister_fixed_link(np);
 			goto ambeth_drv_probe_free_netdev;
 		}
-		netdev_dbg(ndev, "eth: attached to PHY %d UID 0x%08x Link = %d\n",
+		printk("eth: attached to PHY %d UID 0x%08x Link = %d\n",
 		   lp->phydev->mdio.addr, lp->phydev->phy_id, lp->phydev->link);
 		printk("eth: end fixed phy");	
 	}
@@ -2897,6 +2897,7 @@ static int ambeth_drv_resume(struct platform_device *pdev)
 	struct ambeth_info *lp = netdev_priv(ndev);
 	int ret_val = 0;
 	unsigned long flags;
+	printk("eth: ambeth_drv_resume\n");
 
 	if (!netif_running(ndev))
 		goto ambeth_drv_resume_exit;
@@ -2965,10 +2966,10 @@ MODULE_DEVICE_TABLE(of, ambarella_eth_dt_ids);
 static struct platform_driver ambeth_driver = {
 	.probe		= ambeth_drv_probe,
 	.remove		= ambeth_drv_remove,
-#ifdef CONFIG_PM
-	.suspend        = ambeth_drv_suspend,
-	.resume		= ambeth_drv_resume,
-#endif
+// #ifdef CONFIG_PM
+// 	.suspend        = ambeth_drv_suspend,
+// 	.resume		= ambeth_drv_resume,
+// #endif
 	.driver = {
 		.name	= "ambarella-eth",
 		.owner	= THIS_MODULE,
