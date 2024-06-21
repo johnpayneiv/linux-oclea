@@ -394,6 +394,7 @@ static inline int ambhw_enable(struct ambeth_info *lp)
 	int ret_val = 0;
 	u32 val;
 
+	printk("eth: ambhw_enable\n");
 	ret_val = ambhw_dma_reset(lp);
 	if (ret_val)
 		goto ambhw_init_exit;
@@ -706,6 +707,7 @@ static void ambeth_adjust_link(struct net_device *ndev)
 	struct phy_device *phydev = lp->phydev;
 	int need_update = 0;
 	unsigned long flags;
+	printf("eth: ambeth_adjust_link\n");
 
 	spin_lock_irqsave(&lp->lock, flags);
 
@@ -885,6 +887,8 @@ static int ambeth_phy_start(struct ambeth_info *lp)
 	int ret_val = 0;
 	unsigned long flags;
 	__ETHTOOL_DECLARE_LINK_MODE_MASK(mask) = { 0, };
+	
+	printk("eth: ambeth_phy_start\n");
 
 	if (lp->phy_enabled)
 		return 0;
@@ -1503,6 +1507,7 @@ static int ambeth_open(struct net_device *ndev)
 	int ret_val = 0;
 	struct ambeth_info *lp;
 
+	printk("eth: ambeth_open\n");
 	lp = (struct ambeth_info *)netdev_priv(ndev);
 
 	if (!lp->phydev)
@@ -1561,6 +1566,7 @@ static int ambeth_stop(struct net_device *ndev)
 	struct ambeth_info *lp = netdev_priv(ndev);
 	int ret_val = 0;
 
+	printk("eth: ambeth_stop\n");
 	if (!lp->phydev)
 		return -EIO;
 
@@ -2388,12 +2394,12 @@ done:
 }
 
 static const struct ethtool_ops ambeth_ethtool_ops = {
-	.get_link		= ethtool_op_get_link,
+	.get_link			= ethtool_op_get_link,
 	.get_dump_flag		= ambeth_get_dump_flag,
 	.get_dump_data		= ambeth_get_dump_data,
-	.set_dump		= ambeth_set_dump,
+	.set_dump			= ambeth_set_dump,
 	.get_regs_len		= ambeth_ethtools_get_regs_len,
-	.get_regs		= ambeth_ethtools_get_regs,
+	.get_regs			= ambeth_ethtools_get_regs,
 	.get_msglevel		= ambeth_get_msglevel,
 	.set_msglevel		= ambeth_set_msglevel,
 	.get_pauseparam		= ambeth_get_pauseparam,
@@ -2401,7 +2407,7 @@ static const struct ethtool_ops ambeth_ethtool_ops = {
 	.get_link_ksettings	= phy_ethtool_get_link_ksettings,
 	.set_link_ksettings	= phy_ethtool_set_link_ksettings,
 	.get_ts_info		= ambeth_get_ts_info,
-	.self_test		= ambeth_self_test,
+	.self_test			= ambeth_self_test,
 	.get_sset_count		= ambeth_get_sset_count,
 	.get_strings		= ambeth_get_strings,
 	.get_ethtool_stats	= ambeth_get_ethtool_stats,
@@ -2705,6 +2711,7 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 		if (ret_val) {
 			printk("eth: fixed_link register fail: %i\n", ret_val);
 			of_phy_deregister_fixed_link(np);
+			printk("eth: _probe phy dereg 1\n");			
 			goto ambeth_drv_probe_free_netdev;
 		}
 		pn = of_node_get(np);
@@ -2716,11 +2723,11 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 		if (!lp->phydev) {
 			netdev_err(ndev, "failed to connect PHY\n");
 			of_phy_deregister_fixed_link(np);
+			printk("eth: _probe phy dereg 2\n");
 			goto ambeth_drv_probe_free_netdev;
 		}
 		printk("eth: attached to PHY %d UID 0x%08x Link = %d\n",
 		   lp->phydev->mdio.addr, lp->phydev->phy_id, lp->phydev->link);
-		printk("eth: end fixed phy");	
 	}
 	else if (lp->mdio_gpio){
 		mdio_np = of_find_compatible_node(NULL, NULL, "virtual,mdio-gpio");
@@ -2866,6 +2873,7 @@ static int ambeth_drv_suspend(struct platform_device *pdev, pm_message_t state)
 	struct ambeth_info *lp = netdev_priv(ndev);
 	int ret_val = 0;
 	unsigned long flags;
+	printk("eth: ambeth_drv_suspend\n");
 
 	if (!netif_running(ndev))
 		goto ambeth_drv_suspend_exit;
@@ -2971,7 +2979,7 @@ static struct platform_driver ambeth_driver = {
 	.probe		= ambeth_drv_probe,
 	.remove		= ambeth_drv_remove,
 #ifdef CONFIG_PM
-	.suspend        = ambeth_drv_suspend,
+	.suspend    = ambeth_drv_suspend,
 	.resume		= ambeth_drv_resume,
 #endif
 	.driver = {
