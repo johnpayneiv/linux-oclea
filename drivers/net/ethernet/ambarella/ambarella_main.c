@@ -707,7 +707,7 @@ static void ambeth_adjust_link(struct net_device *ndev)
 	struct phy_device *phydev = lp->phydev;
 	int need_update = 0;
 	unsigned long flags;
-	printf("eth: ambeth_adjust_link\n");
+	printk("eth: ambeth_adjust_link\n");
 
 	spin_lock_irqsave(&lp->lock, flags);
 
