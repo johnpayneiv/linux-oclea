@@ -1567,8 +1567,8 @@ static int ambeth_stop(struct net_device *ndev)
 	netif_carrier_off(ndev);
 	phy_stop(lp->phydev);
 	phy_disconnect(lp->phydev);
-	if (of_phy_is_fixed_link(ndev->dev.parent->of_node;)) 
-		of_phy_deregister_fixed_link(ndev->dev.parent->of_node;);	
+	if (of_phy_is_fixed_link(ndev->dev.parent->of_node)) 
+		of_phy_deregister_fixed_link(ndev->dev.parent->of_node);	
 	ambeth_phy_stop(lp);
 	ambeth_stop_hw(ndev);
 
@@ -2873,8 +2873,8 @@ static int ambeth_drv_suspend(struct platform_device *pdev, pm_message_t state)
 	if (lp->phydev) {
 		phy_stop(lp->phydev);
 		phy_disconnect(lp->phydev);
-		if (of_phy_is_fixed_link(ndev->dev.parent->of_node;)) 
-			of_phy_deregister_fixed_link(ndev->dev.parent->of_node;);			
+		if (of_phy_is_fixed_link(ndev->dev.parent->of_node)) 
+			of_phy_deregister_fixed_link(ndev->dev.parent->of_node);			
 	}
 
 	napi_disable(&lp->napi);
