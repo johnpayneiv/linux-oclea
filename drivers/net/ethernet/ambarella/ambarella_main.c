@@ -1542,11 +1542,13 @@ static int ambeth_open(struct net_device *ndev)
 	ambhw_dma_int_enable(lp);
 
 	netif_carrier_off(ndev);
-	ret_val = ambeth_phy_start(lp);
-	if (ret_val)
-		goto ambeth_open_err1;
+	if(!of_phy_is_fixed_link(ndev->dev.parent->of_node)) {
+		ret_val = ambeth_phy_start(lp);
+		if (ret_val)
+			goto ambeth_open_err1;
 
-	phy_start(lp->phydev);
+		phy_start(lp->phydev);
+	}
 
 	return 0;
 
@@ -1571,11 +1573,11 @@ static int ambeth_stop(struct net_device *ndev)
 		return -EIO;
 
 	netif_carrier_off(ndev);
-	phy_stop(lp->phydev);
-	phy_disconnect(lp->phydev);
-	// if (of_phy_is_fixed_link(ndev->dev.parent->of_node)) 
-	// 	of_phy_deregister_fixed_link(ndev->dev.parent->of_node);	
-	ambeth_phy_stop(lp);
+	if (!of_phy_is_fixed_link(ndev->dev.parent->of_node)) {
+		phy_stop(lp->phydev);
+		phy_disconnect(lp->phydev);
+		ambeth_phy_stop(lp);
+	}
 	ambeth_stop_hw(ndev);
 
 	netif_tx_disable(ndev);
