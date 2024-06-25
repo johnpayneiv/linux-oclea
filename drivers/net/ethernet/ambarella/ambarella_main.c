@@ -1512,18 +1512,18 @@ static int ambeth_open(struct net_device *ndev)
 
 	if (!lp->phydev)
 		return -EIO;
+	if(!of_phy_is_fixed_link(ndev->dev.parent->of_node)) { 
+		/* Hardare reset PHY device */
+		ambeth_phy_init(lp);
 
-	/* Hardare reset PHY device */
-	ambeth_phy_init(lp);
-
-	/* Connect , reset and init PHY device */
-	ret_val = phy_connect_direct(ndev, lp->phydev,
-			&ambeth_adjust_link, lp->intf_type);
-	if (ret_val) {
-		dev_err(&lp->ndev->dev, "Could not attach to PHY!\n");
-		return ret_val;
+		/* Connect , reset and init PHY device */
+		ret_val = phy_connect_direct(ndev, lp->phydev,
+				&ambeth_adjust_link, lp->intf_type);
+		if (ret_val) {
+			dev_err(&lp->ndev->dev, "Could not attach to PHY!\n");
+			return ret_val;
+		}
 	}
-
 	ret_val = ambeth_start_hw(ndev);
 	if (ret_val)
 		goto ambeth_open_err0;
@@ -2926,14 +2926,15 @@ static int ambeth_drv_resume(struct platform_device *pdev)
 	if (lp->second_ref_clk_50mhz)
 		regmap_update_bits(lp->reg_scr, AHBSP_CTL_OFFSET, 1<<23, 1<<23);
 
-	ambeth_phy_init(lp);
-	ret_val = phy_connect_direct(ndev, lp->phydev,
-			&ambeth_adjust_link, lp->intf_type);
-	if (ret_val) {
-		dev_err(&lp->ndev->dev, "Could not attach to PHY!\n");
-		return ret_val;
+	if(!of_phy_is_fixed_link(ndev->dev.parent->of_node)) { 
+		ambeth_phy_init(lp);
+		ret_val = phy_connect_direct(ndev, lp->phydev,
+				&ambeth_adjust_link, lp->intf_type);
+		if (ret_val) {
+			dev_err(&lp->ndev->dev, "Could not attach to PHY!\n");
+			return ret_val;
+		}
 	}
-
 	spin_lock_irqsave(&lp->lock, flags);
 	ret_val = ambhw_enable(lp);
 	ambhw_set_link_mode_speed(lp);
