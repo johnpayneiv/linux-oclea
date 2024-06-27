@@ -1542,12 +1542,12 @@ static int ambeth_open(struct net_device *ndev)
 	ambhw_dma_int_enable(lp);
 
 	netif_carrier_off(ndev);
-	if(!of_phy_is_fixed_link(ndev->dev.parent->of_node)) {
-		ret_val = ambeth_phy_start(lp);
-		if (ret_val)
-			goto ambeth_open_err1;
+	//if(!of_phy_is_fixed_link(ndev->dev.parent->of_node)) {
+	ret_val = ambeth_phy_start(lp);
+	if (ret_val)
+		goto ambeth_open_err1;
 
-	}
+	//}
 	phy_start(lp->phydev);
 
 	return 0;
@@ -2469,6 +2469,7 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 		lp->fixed_speed = SPEED_UNKNOWN;
 
 	lp->intf_type = of_get_phy_mode(np);
+	printk("eth: ambeth_of_parse %i\n",lp->intf_type);
 	if (lp->intf_type < 0) {
 		dev_err(dev, "get phy interface type failed!\n");
 		return -ENODEV;
@@ -2577,6 +2578,7 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 	phylink_set(phy_supported, MII);
 
 	ethtool_convert_link_mode_to_legacy_u32(&lp->phy_supported, phy_supported);
+	printk("Eth: _parse %x\n", &lp->phy_supported);
 
 	ret_val = of_property_read_u32(np, "amb,tx-ring-size", &lp->tx_count);
 	if (ret_val < 0 || lp->tx_count < AMBETH_TX_RNG_MIN)
