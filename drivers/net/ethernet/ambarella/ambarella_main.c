@@ -361,7 +361,7 @@ static void ambeth_fc_resolve(struct ambeth_info *lp);
 static inline void ambhw_set_link_mode_speed(struct ambeth_info *lp)
 {
 	u32 val;
-
+	printk("eth: set_link_mode_speed: %d, duplex:%d\n",lp->oldspeed, p->oldduplex);
 	val = readl(lp->regbase + ETH_MAC_CFG_OFFSET);
 	switch (lp->oldspeed) {
 	case SPEED_1000:
@@ -710,7 +710,7 @@ static void ambeth_adjust_link(struct net_device *ndev)
 	printk("eth: ambeth_adjust_link\n");
 
 	spin_lock_irqsave(&lp->lock, flags);
-
+	printf("eth: adjust link duplex %d:%d, speed %d:%d, link %d:%d\n",phydev->duplex, lp->oldduplex, hydev->speed, lp->oldspeed, lp->oldlink, phydev->link);
 	if (phydev->link) {
 		if (phydev->duplex != lp->oldduplex) {
 			need_update = 1;
@@ -2416,6 +2416,13 @@ static const struct ethtool_ops ambeth_ethtool_ops = {
 };
 
 /* ==========================================================================*/
+/* finds device tree nodes with "phy" in the name and parses the properties.
+* then if amb,fixed-speed is in the DT the speed is parsed
+* retreives the phy mode (RGMII...) fro the DT
+* set up the mac-phy interface
+* further DT parsing
+* configure the phy clock polarities.
+*/
 static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 {
 	struct device *dev = lp->ndev->dev.parent;
@@ -2476,8 +2483,10 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 	}
 
 	if (lp->op->set_mode) {
+		printk("eth: _parse set_mode 1\n");
 		lp->op->set_mode(lp);
 	} else if (ENET_CTRL_OFFSET != RCT_INVALID_OFFSET) {
+		printk("eth: _parse set_mode 2\n");
 		switch (lp->intf_type) {
 		case PHY_INTERFACE_MODE_RGMII:
 		case PHY_INTERFACE_MODE_RGMII_ID:
@@ -2501,6 +2510,7 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 		lp->intf_type_val = val;
 		lp->intf_type_mask = mask;
 	} else {
+		printk("eth: _parse set_mode 3\n");
 		regmap_read(lp->reg_rct, SYS_CONFIG_OFFSET, &val);
 		if (!(val & POC_ETH_IS_ENABLED)) {
 			dev_warn(dev, "Ethernet is not enabled by POC, force enable it!\n");
@@ -2578,7 +2588,7 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 	phylink_set(phy_supported, MII);
 
 	ethtool_convert_link_mode_to_legacy_u32(&lp->phy_supported, phy_supported);
-	printk("Eth: _parse %x\n", &lp->phy_supported);
+	printk("Eth: _parse phy_support: %x\n", &lp->phy_supported);
 
 	ret_val = of_property_read_u32(np, "amb,tx-ring-size", &lp->tx_count);
 	if (ret_val < 0 || lp->tx_count < AMBETH_TX_RNG_MIN)
@@ -2618,8 +2628,9 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 	if (lp->second_ref_clk_50mhz)
 		regmap_update_bits(lp->reg_scr, AHBSP_CTL_OFFSET, 1<<23, 1<<23);
 
-	if (lp->op->set_clock)
+	if (lp->op->set_clock) {
 		lp->op->set_clock(lp);
+	}
 
 	return 0;
 }
@@ -2731,8 +2742,8 @@ static int ambeth_drv_probe(struct platform_device *pdev)
 			printk("eth: _probe phy dereg 2\n");
 			goto ambeth_drv_probe_free_netdev;
 		}
-		printk("eth: attached to PHY %d UID 0x%08x Link = %d\n",
-		   lp->phydev->mdio.addr, lp->phydev->phy_id, lp->phydev->link);
+		printk("eth: attached to PHY: %d UID: 0x%08x Link: %d Speed: %d\n",
+		   lp->phydev->mdio.addr, lp->phydev->phy_id, lp->phydev->link, lp->phydev->speed);
 	}
 	else if (lp->mdio_gpio){
 		mdio_np = of_find_compatible_node(NULL, NULL, "virtual,mdio-gpio");
