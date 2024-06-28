@@ -361,7 +361,7 @@ static void ambeth_fc_resolve(struct ambeth_info *lp);
 static inline void ambhw_set_link_mode_speed(struct ambeth_info *lp)
 {
 	u32 val;
-	printk("eth: set_link_mode_speed: %d, duplex:%d\n",lp->oldspeed, p->oldduplex);
+	printk("eth: set_link_mode_speed: %d, duplex:%d\n",lp->oldspeed, lp->oldduplex);
 	val = readl(lp->regbase + ETH_MAC_CFG_OFFSET);
 	switch (lp->oldspeed) {
 	case SPEED_1000:
@@ -710,7 +710,7 @@ static void ambeth_adjust_link(struct net_device *ndev)
 	printk("eth: ambeth_adjust_link\n");
 
 	spin_lock_irqsave(&lp->lock, flags);
-	printf("eth: adjust link duplex %d:%d, speed %d:%d, link %d:%d\n",phydev->duplex, lp->oldduplex, hydev->speed, lp->oldspeed, lp->oldlink, phydev->link);
+	printk("eth: adjust link duplex %d:%d, speed %d:%d, link %d:%d\n",phydev->duplex, lp->oldduplex, hydev->speed, lp->oldspeed, lp->oldlink, phydev->link);
 	if (phydev->link) {
 		if (phydev->duplex != lp->oldduplex) {
 			need_update = 1;
@@ -2588,7 +2588,7 @@ static int ambeth_of_parse(struct device_node *np, struct ambeth_info *lp)
 	phylink_set(phy_supported, MII);
 
 	ethtool_convert_link_mode_to_legacy_u32(&lp->phy_supported, phy_supported);
-	printk("Eth: _parse phy_support: %x\n", &lp->phy_supported);
+	printk("Eth: _parse phy_support: %x\n", phy_supported);
 
 	ret_val = of_property_read_u32(np, "amb,tx-ring-size", &lp->tx_count);
 	if (ret_val < 0 || lp->tx_count < AMBETH_TX_RNG_MIN)
